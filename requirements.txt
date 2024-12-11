@@ -1,0 +1,8 @@
+pypdf==4.0.1
+python-dotenv==1.0.0
+pytest==7.4.3
+pydantic==2.5.2
+loguru==0.7.2
+requests==2.31.0
+pillow==10.1.0
+ollama==0.1.6 
