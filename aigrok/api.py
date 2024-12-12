@@ -3,7 +3,7 @@ API module for PDF processing functionality.
 """
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, List, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from loguru import logger
 import json
 import csv
@@ -14,17 +14,20 @@ from .pdf_processor import PDFProcessor, ProcessingResult
 
 class OutputSchema(BaseModel):
     """Schema for structured output."""
+    model_config = ConfigDict(strict=True)
     format: Literal["json", "csv"] = Field(..., description="Output format (json or csv)")
-    schema: Union[str, List[str]] = Field(..., description="JSON schema example or CSV column names")
+    schema_def: Union[str, List[str]] = Field(..., description="JSON schema example or CSV column names")
 
 class ProcessRequest(BaseModel):
     """Request model for PDF processing."""
+    model_config = ConfigDict(strict=True)
     file_path: str = Field(..., description="Path to the PDF file to process")
     prompt: Optional[str] = Field(None, description="Optional prompt for LLM analysis")
     output_schema: Optional[OutputSchema] = Field(None, description="Schema for structured output")
 
 class ProcessResponse(BaseModel):
     """Response model for PDF processing."""
+    model_config = ConfigDict(strict=True)
     success: bool = Field(..., description="Whether the processing was successful")
     text: Optional[str] = Field(None, description="Extracted text from the PDF")
     metadata: Optional[Dict[str, Any]] = Field(None, description="PDF metadata")
@@ -60,13 +63,13 @@ class APIProcessor:
         try:
             if schema.format == "json":
                 # Validate JSON structure
-                example = json.loads(schema.schema if isinstance(schema.schema, str) else json.dumps(schema.schema))
+                example = json.loads(schema.schema_def if isinstance(schema.schema_def, str) else json.dumps(schema.schema_def))
                 result = json.loads(output)
                 # Check if all keys in example exist in result
                 return all(key in result for key in example.keys())
             else:  # csv
                 # Validate CSV structure
-                expected_columns = len(schema.schema if isinstance(schema.schema, list) else schema.schema.split(","))
+                expected_columns = len(schema.schema_def if isinstance(schema.schema_def, list) else schema.schema_def.split(","))
                 reader = csv.reader(StringIO(output))
                 row = next(reader)
                 return len(row) == expected_columns
@@ -85,7 +88,7 @@ class APIProcessor:
         """
         try:
             # First, extract text from PDF
-            result = self.pdf_processor.process_file(request.file_path)
+            result = self.pdf_processor.process_file(request.file_path, enforce_pdf=True)
             if not result.success:
                 return ProcessResponse(
                     success=False,
@@ -103,13 +106,14 @@ class APIProcessor:
             if request.output_schema:
                 format_prompt = self._generate_format_prompt(
                     request.output_schema.format,
-                    request.output_schema.schema
+                    request.output_schema.schema_def
                 )
                 
                 # Get structured output from LLM
                 format_result = self.pdf_processor.process_file(
                     request.file_path,
-                    prompt=format_prompt
+                    prompt=format_prompt,
+                    enforce_pdf=True
                 )
                 
                 if format_result.success and format_result.llm_response:
@@ -124,7 +128,8 @@ class APIProcessor:
             if request.prompt:
                 prompt_result = self.pdf_processor.process_file(
                     request.file_path,
-                    prompt=request.prompt
+                    prompt=request.prompt,
+                    enforce_pdf=True
                 )
                 if prompt_result.success:
                     response.llm_response = prompt_result.llm_response

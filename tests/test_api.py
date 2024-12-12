@@ -2,6 +2,7 @@
 Tests for API functionality.
 """
 import pytest
+import warnings
 from pathlib import Path
 from unittest.mock import Mock, patch
 from aigrok.api import APIClient, APIProcessor, ProcessRequest, ProcessResponse

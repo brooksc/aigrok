@@ -40,29 +40,28 @@ Process PDFs directly from the command line using the `aigrok` command:
 
 ```bash
 # Basic PDF text extraction
-aigrok input.pdf
+aigrok "Extract the text" input.pdf
 
 # Analyze PDF with LLM
-aigrok input.pdf --prompt "Summarize this document" --model llama3.2-vision:11b
+aigrok "Summarize this document" input.pdf --model llama3.2-vision:11b
 
 # Extract specific information with different output formats
-aigrok input.pdf --prompt "Extract author names" --format text  # Comma-separated list
-aigrok input.pdf --prompt "Extract author names" --format json  # JSON array of objects
-aigrok input.pdf --prompt "Extract author names" --format csv   # CSV with headers
+aigrok "Extract author names" input.pdf --format text  # Comma-separated list
+aigrok "Extract author names" input.pdf --format json  # JSON array of objects
+aigrok "Extract author names" input.pdf --format csv   # CSV with headers
 
 # Extract metadata only
-aigrok input.pdf --metadata-only
+aigrok "Extract metadata" input.pdf --metadata-only
 
 # Save output to file
-aigrok input.pdf -o output.txt
+aigrok "Extract the text" input.pdf -o output.txt
 
 # Enable verbose logging
-aigrok input.pdf -v
+aigrok "Extract the text" input.pdf -v
 ```
 
 Available options:
 - `input`: Path to the PDF file
-- `--prompt`: Prompt for LLM analysis
 - `--model`: Name of the Ollama model to use
 - `--output, -o`: Save output to file
 - `--format`: Output format (text, json, csv, markdown)
@@ -165,3 +164,7 @@ We welcome contributions! Whether you want to fix a bug, add a feature, or impro
 4. Submit a pull request
 
 And remember, as a wise Martian once said, "thou art god" (that's more Heinlein humor for you). 
+
+# Postscript
+
+90% of this project was written by AI using Cursor and Claude.
