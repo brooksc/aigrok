@@ -1,5 +1,10 @@
 # Release History
 
+## v0.2.1 (2024-12-12)
+
+### Changes
+- Published package to PyPI
+
 ## v0.2 (2024-12-11)
 
 ### Breaking Changes

@@ -4,9 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
@@ -16,7 +14,6 @@ parts/
 sdist/
 var/
 wheels/
-*.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
@@ -66,6 +63,13 @@ coverage.xml
 *.spec
 pip-log.txt
 pip-delete-this-directory.txt
+dist/
+build/
+*.egg-info/
+
+# PyPI configuration
+~/.pypirc
+.pypirc
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -80,4 +84,6 @@ dmypy.json
 llm_cache/
 test_files/
 temp/
-output/ .envrc
+output/ 
+.envrc
+push-test-pypi.sh 

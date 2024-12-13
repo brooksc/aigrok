@@ -15,6 +15,13 @@ Plus, let's be honest, "aigrok" is way cooler than "ai_document_analyzer_v2_fina
 
 ## Installation
 
+### Using pip
+
+You can install aigrok directly from PyPI:
+```bash
+pip install aigrok
+```
+
 ### From Source
 
 1. Clone the repository:
