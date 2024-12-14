@@ -20,21 +20,29 @@ class OutputSchema(BaseModel):
 
 class ProcessRequest(BaseModel):
     """Request model for PDF processing."""
-    model_config = ConfigDict(strict=True)
-    file_path: str = Field(..., description="Path to the PDF file to process")
-    prompt: Optional[str] = Field(None, description="Optional prompt for LLM analysis")
-    output_schema: Optional[OutputSchema] = Field(None, description="Schema for structured output")
+    model_config = ConfigDict(
+        extra='forbid',
+        validate_default=True
+    )
+    
+    file_path: str
+    prompt: Optional[str] = None
+    output_schema: Optional[OutputSchema] = None
 
 class ProcessResponse(BaseModel):
     """Response model for PDF processing."""
-    model_config = ConfigDict(strict=True)
-    success: bool = Field(..., description="Whether the processing was successful")
-    text: Optional[str] = Field(None, description="Extracted text from the PDF")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="PDF metadata")
-    error: Optional[str] = Field(None, description="Error message if processing failed")
-    page_count: int = Field(0, description="Number of pages in the PDF")
-    llm_response: Optional[str] = Field(None, description="Raw LLM analysis response if prompt was provided")
-    structured_output: Optional[str] = Field(None, description="Structured output in JSON or CSV format")
+    model_config = ConfigDict(
+        extra='forbid',
+        validate_default=True
+    )
+    
+    success: bool
+    text: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    page_count: int = 0
+    error: Optional[str] = None
+    llm_response: Optional[Any] = None
+    structured_output: Optional[str] = None
 
 class APIProcessor:
     """Server-side API processor."""
@@ -88,18 +96,18 @@ class APIProcessor:
         """
         try:
             # First, extract text from PDF
-            result = self.pdf_processor.process_file(request.file_path, enforce_pdf=True)
-            if not result.success:
-                return ProcessResponse(
-                    success=False,
-                    error=result.error
-                )
+            result = self.pdf_processor.process_file(
+                file_path=request.file_path,
+                prompt=request.prompt
+            )
             
             response = ProcessResponse(
-                success=True,
+                success=result.success,
                 text=result.text,
                 metadata=result.metadata,
-                page_count=result.page_count
+                page_count=result.page_count,
+                error=result.error,
+                llm_response=result.llm_response
             )
             
             # Handle structured output if schema provided
@@ -124,16 +132,6 @@ class APIProcessor:
                     else:
                         response.error = "Failed to generate valid structured output"
             
-            # Handle additional prompt if provided
-            if request.prompt:
-                prompt_result = self.pdf_processor.process_file(
-                    request.file_path,
-                    prompt=request.prompt,
-                    enforce_pdf=True
-                )
-                if prompt_result.success:
-                    response.llm_response = prompt_result.llm_response
-            
             return response
             
         except Exception as e:
@@ -150,32 +148,22 @@ class APIClient:
         """Initialize the API client."""
         self.base_url = base_url.rstrip('/')
         
-    def process_pdf(
-        self,
-        file_path: Union[str, Path],
-        prompt: Optional[str] = None,
-        output_format: Optional[str] = None,
-        output_schema: Optional[Union[str, List[str]]] = None
-    ) -> ProcessResponse:
-        """
-        Process a PDF file through the API.
+    def process(self, request: ProcessRequest) -> ProcessResponse:
+        """Process a PDF file.
         
         Args:
-            file_path: Path to the PDF file
-            prompt: Optional prompt for LLM analysis
-            output_format: Optional output format ("json" or "csv")
-            output_schema: Optional schema for structured output
+            request: The processing request
             
         Returns:
-            ProcessResponse containing the processing results
+            The processing response
         """
         try:
-            request_data = {"file_path": str(file_path), "prompt": prompt}
+            request_data = {"file_path": str(request.file_path), "prompt": request.prompt}
             
-            if output_format and output_schema:
+            if request.output_schema:
                 request_data["output_schema"] = {
-                    "format": output_format,
-                    "schema": output_schema
+                    "format": request.output_schema.format,
+                    "schema": request.output_schema.schema_def
                 }
             
             request = ProcessRequest(**request_data)

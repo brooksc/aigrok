@@ -1,0 +1,48 @@
+{
+    "archived_tests": {
+        "missing_files": {
+            "large_pdf_tests": [
+                {
+                    "name": "large_pdf_processing",
+                    "file": "tests/files/large.pdf",
+                    "method": "api",
+                    "expected": {
+                        "success": true,
+                        "page_count": {"min": 5}
+                    }
+                },
+                {
+                    "name": "very_large_pdf",
+                    "file": "tests/files/large.pdf",
+                    "method": "api",
+                    "expected": {
+                        "success": true,
+                        "page_count": {"min": 100}
+                    }
+                }
+            ],
+            "complex_pdf_tests": [
+                {
+                    "name": "complex_query_performance",
+                    "file": "tests/files/complex.pdf",
+                    "method": "api",
+                    "expected": {
+                        "success": true,
+                        "execution_time_seconds": {"max": 10}
+                    }
+                }
+            ],
+            "unicode_tests": [
+                {
+                    "name": "unicode_handling",
+                    "file": "tests/files/unicode.pdf",
+                    "method": "api",
+                    "expected": {
+                        "success": true,
+                        "contains_unicode": true
+                    }
+                }
+            ]
+        }
+    }
+} 

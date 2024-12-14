@@ -1,11 +1,70 @@
 [build-system]
-requires = ["setuptools>=45", "wheel", "setuptools_scm>=6.2"]
+requires = ["setuptools>=69.0.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
+addopts = "-v"
 testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-ra -q"
+filterwarnings = [
+    "ignore::DeprecationWarning:pkg_resources.*:",
+    "ignore::DeprecationWarning:litellm.*:",
+    "ignore::pytest.PytestCollectionWarning",
+    "ignore::pydantic.PydanticDeprecatedSince20"
+]
+
+[project]
+name = "aigrok"
+version = "0.2.1"
+description = "A Python package for document processing and analysis with LLM integration"
+authors = [
+    {name = "aigrok", email = "brooksc@brooksc.com"},
+]
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "pypdf>=5.1.0",
+    "python-dotenv>=1.0.0",
+    "pytest>=7.4.3",
+    "pydantic>=2.5.2",
+    "loguru>=0.7.2",
+    "requests>=2.31.0",
+    "pillow>=10.1.0",
+    "ollama>=0.1.6",
+    "litellm>=1.30.3",
+    "pymupdf>=1.23.8"  # Added for fitz module
+]
+
+[project.urls]
+Homepage = "https://github.com/brooksc/aigrok"
+Repository = "https://github.com/brooksc/aigrok.git"
+
+[project.scripts]
+aigrok = "aigrok.cli:main"
+
+[tool.setuptools]
+packages = ["aigrok"]
+package-dir = {"" = "."}
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+select = ["E", "F", "I", "N", "W", "B", "UP", "C"]
+ignore = []
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/*" = ["E501"]
 
 [tool.black]
 line-length = 88
@@ -13,4 +72,4 @@ include = '\.pyi?$'
 
 [tool.isort]
 profile = "black"
-multi_line_output = 3 
+multi_line_output = 3

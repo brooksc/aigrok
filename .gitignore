@@ -79,6 +79,9 @@ build/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+.ruff_cache/
+tests/.cache/
+tests/logs/
 
 # Project specific
 llm_cache/
@@ -87,3 +90,9 @@ temp/
 output/ 
 .envrc
 push-test-pypi.sh 
+.DS_Store
+
+# Test cache
+.cache/
+~/.cache/aigrok/
+test_cache/

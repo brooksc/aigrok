@@ -1,18 +1,47 @@
 # Release History
 
+## v0.2.1 (2024-12-14)
+
+### Changes
+
+- Modernized build system:
+  - Migrated from setup.py to pyproject.toml
+  - Updated all dependencies to latest stable versions
+  - Added explicit package configuration
+  - Removed requirements.txt in favor of pyproject.toml dependencies
+
+### Improvements
+
+- Restructured and improved test framework:
+  - Consolidated test files into a unified test runner
+  - Added comprehensive test categories (format, CLI, API, validation, performance)
+  - Improved test organization and documentation
+  - Added test file management system
+  - Enhanced test reporting capabilities
+
+### Dependencies
+
+- Updated setuptools to 69.0.2
+- Updated litellm to 1.30.3
+- Added pymupdf 1.23.8
+- Updated all core dependencies to latest stable versions
+
 ## v0.2.1 (2024-12-12)
 
 ### Changes
+
 - Published package to PyPI
 
 ## v0.2 (2024-12-11)
 
 ### Breaking Changes
+
 - Changed CLI interface to require prompt as first positional argument
 - Removed `--prompt` flag from command line options
 - Removed auto-generated prompt logic from PDF processor
 
 ### New Features
+
 - Added support for multiple LLM providers:
   - OpenAI models (GPT-4, GPT-3.5)
   - Anthropic models (Claude)
@@ -24,6 +53,7 @@
   - Continues processing if one file fails
 
 ### Improvements
+
 - Updated Pydantic models to use ConfigDict instead of class-based config
 - Renamed schema field to schema_def to avoid BaseModel attribute shadowing
 - Added warning filters for external package deprecation notices
@@ -31,6 +61,7 @@
 - Simplified prompt handling in document processing
 
 ### Documentation
+
 - Updated README.md with new CLI interface examples
 - Updated spec.md to reflect new command structure
 - Added HISTORY.md to track version changes
@@ -44,6 +75,7 @@
 ## v0.1 (2024-12-10)
 
 ### Initial Release
+
 - Basic PDF and text file processing
 - Single LLM integration for document analysis
 - Multiple output formats:
@@ -65,4 +97,4 @@
 - Python API for programmatic access
 - Comprehensive test suite
 - Format validation for supported file types
-- Error handling and logging system 
+- Error handling and logging system

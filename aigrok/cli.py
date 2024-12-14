@@ -7,10 +7,12 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union, List
 from loguru import logger
 from .pdf_processor import PDFProcessor, ProcessingResult
 from .formats import validate_format, get_supported_formats
+from io import StringIO
+import csv
 
 def setup_logger(verbose: bool = False):
     """Configure logging based on verbosity level."""
@@ -82,163 +84,80 @@ def create_parser() -> argparse.ArgumentParser:
     
     return parser
 
-def format_output(result: ProcessingResult, format_type: str) -> str:
-    """Format processing result based on output type."""
-    if not result.success:
-        return f"Error: {result.error}"
+def format_output(result: ProcessingResult, format_type: str = "text") -> str:
+    """Format processing result for output.
+    
+    Args:
+        result: Processing result to format
+        format_type: Output format (text, json, markdown)
+    
+    Returns:
+        Formatted output string
+    """
+    if format_type == "text":
+        return result.llm_response or result.text or ""
     
     if format_type == "json":
-        try:
-            # If LLM response is JSON, try to extract it from markdown code blocks
-            if result.llm_response:
-                import re
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\}|\[.*?\])\s*```', result.llm_response, re.DOTALL)
-                if json_match:
-                    try:
-                        json_data = json.loads(json_match.group(1))
-                        return json.dumps(json_data, indent=2)
-                    except json.JSONDecodeError:
-                        pass
-                
-                # Try parsing the raw response as JSON
-                try:
-                    if isinstance(result.llm_response, (dict, list)):
-                        return json.dumps(result.llm_response, indent=2)
-                    json_data = json.loads(result.llm_response)
-                    return json.dumps(json_data, indent=2)
-                except (json.JSONDecodeError, TypeError):
-                    pass
-            
-            # Special case for author list
-            if "author" in result.text.lower():
-                # Split authors and create JSON structure
-                authors = []
-                # Remove special characters and split by commas
-                text = re.sub(r'[^\w\s,]', '', result.text)
-                for author in text.split(','):
-                    name_parts = [part for part in author.strip().split() if part.strip()]
-                    if len(name_parts) >= 2:
-                        # Handle special case for author names
-                        if name_parts[0].lower() in ['university', 'institute', 'department']:
-                            continue
-                        authors.append({
-                            "first_name": " ".join(name_parts[:-1]),
-                            "last_name": name_parts[-1]
-                        })
-                return json.dumps(authors, indent=2)
-            
-            # Fallback to structured output
-            return json.dumps({
-                "text": result.text,
-                "metadata": result.metadata,
-                "page_count": result.page_count,
-                "analysis": result.llm_response
-            }, indent=2)
-        except Exception as e:
-            logger.error(f"Error formatting JSON output: {str(e)}")
-            return json.dumps({
-                "error": "Failed to format JSON output",
-                "text": result.text,
-                "metadata": result.metadata,
-                "page_count": result.page_count,
-                "analysis": result.llm_response
-            }, indent=2)
+        return json.dumps({
+            "success": result.success,
+            "text": result.text,
+            "metadata": result.metadata,
+            "page_count": result.page_count,
+            "llm_response": result.llm_response,
+            "error": result.error
+        }, indent=2)
     
-    elif format_type == "csv":
-        if result.llm_response and '\n' in result.llm_response:
-            return result.llm_response  # Return CSV from LLM
-        elif "author" in result.text.lower():
-            # Special case for author list
-            authors = []
-            text = re.sub(r'[^\w\s,]', '', result.text)
-            for author in text.split(','):
-                name_parts = [part for part in author.strip().split() if part.strip()]
-                if len(name_parts) >= 2:
-                    if name_parts[0].lower() in ['university', 'institute', 'department']:
-                        continue
-                    authors.append({
-                        "first_name": " ".join(name_parts[:-1]),
-                        "last_name": name_parts[-1]
-                    })
-            # Format as CSV with newlines
-            csv_lines = ["first_name,last_name"]
-            for author in authors:
-                csv_lines.append(f"{author['first_name']},{author['last_name']}")
-            return "\n".join(csv_lines)
-        else:
-            # Basic CSV format
-            return f"field,value\ntext,{result.text}\npage_count,{result.page_count}"
-    
-    elif format_type == "markdown":
-        md = "# Document Analysis Results\n\n"
+    if format_type == "markdown":
+        lines = [
+            "# Document Analysis",
+            f"Text: {result.text or 'N/A'}",
+            f"Page Count: {result.page_count}",
+            f"LLM Response: {result.llm_response or 'N/A'}"
+        ]
         if result.metadata:
-            md += "## Metadata\n"
-            for key, value in result.metadata.items():
-                md += f"- {key}: {value}\n"
-        md += f"\n## Page Count\n{result.page_count}\n"
-        if result.text:
-            md += f"\n## Extracted Text\n{result.text}\n"
-        if result.llm_response:
-            md += f"\n## Analysis\n{result.llm_response}\n"
-        return md
+            lines.extend([
+                "## Metadata",
+                *[f"{k}: {v}" for k, v in result.metadata.items()]
+            ])
+        if result.error:
+            lines.append(f"## Error\n{result.error}")
+        return "\n".join(lines)
     
-    # Default to text format - ensure one line
-    if result.llm_response:
-        return result.llm_response.replace('\n', ' ').strip()
-    return result.text.replace('\n', ' ').strip() if result.text else "No text content extracted"
+    raise ValueError(f"Unknown format type: {format_type}")
 
-def process_file(args) -> Optional[str]:
-    """Process files based on command line arguments."""
-    try:
-        processor = PDFProcessor()
-        outputs = []
-        
-        # Convert single file to list for consistent handling
-        input_files = [args.input] if isinstance(args.input, str) else args.input
-        
-        for input_file in input_files:
-            try:
-                # Modify prompt to enforce one-line response
-                prompt = args.prompt
-                if prompt and "one line" not in prompt.lower():
-                    prompt += " Respond with ONLY one line, no other text."
-                
-                # Process the file
-                result = processor.process_file(
-                    input_file,
-                    prompt=prompt,
-                    model=args.model,
-                    enforce_pdf=True
-                )
-                
-                # Format the output
-                if result.success:
-                    output = format_output(result, args.format)
-                    # Only force one line for text format
-                    if args.format == "text":
-                        output = output.replace('\n', ' ').strip()
-                else:
-                    output = result.error
-                    logger.error(f"Error processing {input_file}: {result.error}")
-                
-                if len(input_files) > 1:
-                    # Add filename prefix for multiple files
-                    outputs.append(f"{input_file}:{output}")
-                else:
-                    outputs.append(output)
-                    
-            except Exception as e:
-                error_msg = str(e)
-                logger.error(f"Error processing {input_file}: {error_msg}")
-                return None
-        
-        # Join outputs with newlines
-        return "\n".join(outputs) if outputs else None
-        
-    except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Error processing files: {error_msg}")
-        return None
+def process_single_file(file_path: Union[str, Path], prompt: str) -> ProcessingResult:
+    """Process a single PDF file.
+    
+    Args:
+        file_path: Path to PDF file
+        prompt: Processing prompt
+    
+    Returns:
+        Processing result
+    
+    Raises:
+        Exception: If processing fails
+    """
+    processor = PDFProcessor()
+    return processor.process_file(str(file_path), prompt)
+
+def process_file(
+    files: Union[str, Path, List[Union[str, Path]]],
+    prompt: str
+) -> Union[ProcessingResult, List[ProcessingResult]]:
+    """Process one or more PDF files.
+    
+    Args:
+        files: Path(s) to PDF file(s)
+        prompt: Processing prompt
+    
+    Returns:
+        Single result or list of results
+    """
+    if isinstance(files, (str, Path)):
+        return process_single_file(files, prompt)
+    
+    return [process_single_file(f, prompt) for f in files]
 
 def main():
     """Main entry point."""
@@ -250,14 +169,14 @@ def main():
         setup_logger(args.verbose)
         
         # Process file
-        output = process_file(args)
-        if output:
+        output = process_file(args.input, args.prompt)
+        if output.success:
             if args.output:
-                Path(args.output).write_text(output)
+                Path(args.output).write_text(format_output(output, args.format))
                 logger.info(f"Output written to {args.output}")
             else:
                 try:
-                    print(output)
+                    print(format_output(output, args.format))
                 except BrokenPipeError:
                     # Python flushes standard streams on exit; redirect remaining output
                     # to devnull to avoid another BrokenPipeError at shutdown

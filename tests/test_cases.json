@@ -1,0 +1,214 @@
+{
+    "metadata": {
+        "last_updated": "2023-12-13",
+        "notes": "Tests requiring missing files (large.pdf, complex.pdf, unicode.pdf) have been moved to archived_test_cases.json"
+    },
+    "api_tests": {
+        "invoice_extraction": [
+            {
+                "name": "invoice_date",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the invoice date? Please respond with just the date in YYYY.MM.DD format.",
+                "expected": "2016.01.25",
+                "method": "api",
+                "error_margin": null
+            },
+            {
+                "name": "due_date",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the due date? Please respond with just the date in YYYY.MM.DD format.",
+                "expected": "2016.01.31",
+                "method": "api",
+                "error_margin": null
+            },
+            {
+                "name": "total_amount",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the total amount due? Please respond with just the amount in format $XX.XX.",
+                "expected": "$93.50",
+                "method": "api",
+                "error_margin": null
+            },
+            {
+                "name": "tax_amount",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the tax amount? Please respond with just the amount in format $XX.XX.",
+                "expected": "$8.50",
+                "method": "api",
+                "error_margin": null
+            },
+            {
+                "name": "email",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the sender's email address? Please respond with just the email address.",
+                "expected": "admin@slicedinvoices.com",
+                "method": "api",
+                "error_margin": null
+            }
+        ],
+        "validation": [
+            {
+                "name": "process_request_validation",
+                "type": "request_validation",
+                "method": "api",
+                "inputs": [
+                    {
+                        "file_path": "tests/files/invoice.pdf",
+                        "prompt": null,
+                        "expected": {
+                            "file_path": "tests/files/invoice.pdf",
+                            "prompt": null
+                        }
+                    },
+                    {
+                        "file_path": "tests/files/invoice.pdf",
+                        "prompt": "test prompt",
+                        "expected": {
+                            "file_path": "tests/files/invoice.pdf",
+                            "prompt": "test prompt"
+                        }
+                    },
+                    {
+                        "file_path": null,
+                        "prompt": null,
+                        "expected_error": "file_path is required"
+                    }
+                ]
+            },
+            {
+                "name": "process_response_validation",
+                "type": "response_validation",
+                "method": "api",
+                "inputs": [
+                    {
+                        "success": true,
+                        "text": "Sample text",
+                        "page_count": 1,
+                        "expected": {
+                            "success": true,
+                            "text": "Sample text",
+                            "page_count": 1,
+                            "error": null
+                        }
+                    },
+                    {
+                        "success": false,
+                        "error": "File not found",
+                        "expected": {
+                            "success": false,
+                            "error": "File not found",
+                            "text": null
+                        }
+                    }
+                ]
+            }
+        ],
+        "processor_tests": [
+            {
+                "name": "basic_processing",
+                "file": "tests/files/invoice.pdf",
+                "method": "api",
+                "expected": {
+                    "success": true,
+                    "page_count": 1
+                }
+            },
+            {
+                "name": "invalid_pdf_handling",
+                "file": "tests/files/not_a_pdf.txt",
+                "method": "api",
+                "expected": {
+                    "success": false,
+                    "error": "Invalid file format: .txt"
+                }
+            },
+            {
+                "name": "empty_pdf_handling",
+                "file": "tests/files/empty.pdf",
+                "method": "api",
+                "expected": {
+                    "success": true,
+                    "page_count": 0,
+                    "text": ""
+                }
+            },
+            {
+                "name": "pdf_text_extraction",
+                "file": "tests/files/invoice.pdf",
+                "method": "api",
+                "expected": {
+                    "success": true,
+                    "text": {
+                        "contains": [
+                            "Invoice",
+                            "Sliced Invoices",
+                            "Web Design"
+                        ]
+                    }
+                }
+            }
+        ],
+        "client_tests": [
+            {
+                "name": "basic_client_processing",
+                "file": "tests/files/invoice.pdf",
+                "method": "api",
+                "expected": {
+                    "success": true,
+                    "llm_response": {
+                        "contains": [
+                            "Invoice",
+                            "Sliced Invoices",
+                            "Web Design"
+                        ]
+                    },
+                    "page_count": 1
+                }
+            },
+            {
+                "name": "client_with_prompt",
+                "file": "tests/files/invoice.pdf",
+                "prompt": "What is the invoice date?",
+                "method": "api",
+                "expected": {
+                    "success": true,
+                    "llm_response": {
+                        "contains": [
+                            "January 25, 2016"
+                        ]
+                    }
+                }
+            },
+            {
+                "name": "client_error_handling",
+                "file": "tests/files/invoice.pdf",
+                "method": "api",
+                "mock_error": true,
+                "expected": {
+                    "success": false,
+                    "error": "Connection error"
+                }
+            }
+        ],
+        "error_handling": [
+            {
+                "name": "invalid_file_path",
+                "file": "nonexistent.pdf",
+                "method": "api",
+                "expected": {
+                    "success": false,
+                    "error": "File not found: nonexistent.pdf"
+                }
+            },
+            {
+                "name": "invalid_file_type",
+                "file": "test.txt",
+                "method": "api",
+                "expected": {
+                    "success": false,
+                    "error": "Invalid file format: .txt"
+                }
+            }
+        ]
+    }
+}
