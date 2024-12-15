@@ -20,15 +20,16 @@ aigrok [OPTIONS] COMMAND [ARGS]
 | `--log-level LEVEL` | Set logging level (debug/info/warn/error) | `info` |
 | `--version` | Show version information | - |
 | `--help` | Show help message | - |
+| `--configure` | Run interactive configuration wizard | - |
 
 ## Commands
 
 ### process
 
-Process a document with AI analysis.
+Process one or more documents with AI analysis.
 
 ```bash
-aigrok process [OPTIONS] FILE
+aigrok process [OPTIONS] [FILES...]
 ```
 
 #### Options
@@ -41,6 +42,9 @@ aigrok process [OPTIONS] FILE
 | `--output FILE` | Output file path | stdout |
 | `--cache` | Enable result caching | `false` |
 | `--timeout SECONDS` | Processing timeout | `30` |
+| `--easyocr` | Enable OCR processing of images in PDFs | `false` |
+| `--ocr-languages LANGS` | Comma-separated list of OCR languages | `en` |
+| `--ocr-fallback` | Continue processing if OCR fails | `false` |
 
 #### Examples
 
@@ -48,14 +52,17 @@ aigrok process [OPTIONS] FILE
 # Basic document processing
 aigrok process document.pdf
 
+# Process multiple documents
+aigrok process doc1.pdf doc2.pdf doc3.pdf
+
 # Custom prompt with specific model
-aigrok process --model llama2-vision --prompt "Extract main topics" paper.pdf
+aigrok process --model llama2-vision --prompt "Summarize this document" document.pdf
 
-# Process with JSON output
-aigrok process --format json --output results.json document.pdf
+# Enable OCR with multiple languages
+aigrok process --easyocr --ocr-languages "en,fr,de" document.pdf
 
-# Process with caching enabled
-aigrok process --cache --prompt "Summarize content" document.pdf
+# Process with OCR fallback
+aigrok process --easyocr --ocr-fallback document.pdf
 ```
 
 ### validate
@@ -136,6 +143,32 @@ aigrok config set model.default gpt-4-vision
 
 # Reset configuration
 aigrok config reset
+```
+
+### configure
+
+Run the interactive configuration wizard.
+
+```bash
+aigrok configure [OPTIONS]
+```
+
+#### Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--reset` | Reset configuration to defaults | `false` |
+| `--show` | Show current configuration | `false` |
+| `--validate` | Validate current configuration | `false` |
+
+#### Examples
+
+```bash
+# Configure aigrok
+aigrok configure
+
+# Show current configuration
+aigrok configure --show
 ```
 
 ## Environment Variables

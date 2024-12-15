@@ -1,5 +1,85 @@
 # Release History
 
+## v0.2.6 (2024-12-15)
+
+### Major Features
+* Added interactive configuration management with --configure flag
+* Added support for vision models and provider-specific processing
+* Enhanced document type detection (text-only, images-only, mixed)
+* Added provider-specific endpoint configuration
+* Added OCR fallback configuration with graceful degradation
+* Added multi-language OCR support with configurable language packs
+* Added CLI support for OCR configuration and language selection
+* Added support for multiple file processing with batch output
+
+### Configuration Features
+* Added ConfigManager class for centralized configuration handling
+* Added support for provider-specific model configurations
+* Added configuration validation and migration support
+* Added environment variable support for sensitive data
+* Added configuration persistence and loading
+* Added interactive configuration wizard
+
+### Architecture Improvements
+* Refactored PDFProcessor for better separation of concerns
+* Enhanced model capability validation and selection
+* Improved provider-specific LLM response handling
+* Added structured response types for better type safety
+* Added timeout configuration for model requests (30s for text, 60s for vision)
+* Added streaming support for large document processing
+* Enhanced error handling with graceful degradation
+
+### CLI Enhancements
+* Added --easyocr flag for OCR processing
+* Added --ocr-languages flag for language selection
+* Added --ocr-fallback flag for graceful degradation
+* Improved output formatting for multiple files
+* Enhanced verbosity control and logging
+* Added support for different output formats (text, json, markdown)
+
+### Bug Fixes
+* Fixed OCR processing in PDFProcessor to correctly handle and combine OCR text with PDF text
+* Improved error handling in image extraction from PDFs
+* Fixed test mocks for PDF document processing with OCR
+* Fixed provider endpoint configuration validation
+* Fixed handling of timeouts in model requests
+* Fixed output formatting for batch processing
+
+### Testing Improvements
+* Added comprehensive test suite for OCR and LLM interactions
+* Added test coverage for different document types and processing scenarios
+* Improved test fixtures and helper functions
+* Added mocking infrastructure for external services
+* Added timeout and error handling tests
+
+### Documentation
+* Updated configuration documentation with new options
+* Added examples for vision model usage
+* Improved error messages and logging
+* Added type hints and docstrings
+* Added CLI usage examples for new features
+
+## v0.2.5 (2024-12-14)
+
+### Improvements
+* Added comprehensive debug logging throughout the codebase
+* Enhanced verbosity output for better troubleshooting
+* Improved error reporting and status messages
+
+## v0.2.4 (2024-12-14)
+
+### Bug Fixes
+* Fixed format_output to handle both single results and lists of results
+* Added proper list handling for multiple file processing outputs
+* Fixed imports in cli.py
+
+## v0.2.3 (2024-12-14)
+
+### Bug Fixes
+* Fixed CLI output handling for multiple file processing
+* Fixed missing sys import in cli.py
+* Improved error handling for process_file results
+
 ## v0.2.2 (2024-12-14)
 
 ### Changes
