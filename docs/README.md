@@ -2,6 +2,32 @@
 
 Welcome to the AIGrok documentation! This directory contains comprehensive documentation for the AIGrok project.
 
+## Core Features
+
+### PDF Processing
+- PyMuPDF-based text extraction
+- Vision model support for image analysis
+- EasyOCR integration for image text extraction
+  - Command-line flag: `--easyocr`
+  - Language support: English (default)
+  - Fallback to standard text LLM processing
+  - Configurable via config file
+
+### Processing Flow
+1. Document Input
+   - PDF file loaded via PyMuPDF
+   - Text extraction from PDF
+   - Image extraction from PDF (if needed)
+
+2. OCR Processing (when enabled)
+   - Initialize EasyOCR with configured languages
+   - Process extracted images
+   - Combine OCR text with PDF text
+
+3. LLM Processing
+   - Process combined text with configured LLM
+   - Return structured response
+
 ## Documentation Structure
 
 - [Architecture](architecture.md) - System architecture and design principles
@@ -9,6 +35,7 @@ Welcome to the AIGrok documentation! This directory contains comprehensive docum
 - [Deployment Guide](deployment.md) - Deployment instructions and configurations
 - [Testing Guide](testing.md) - Testing procedures and guidelines
 - [CLI Reference](cli.md) - Command-line interface documentation
+- [Dependencies](dependencies.md) - Detailed dependency information
 - [Manual Pages](man/) - Detailed manual pages for each component
 
 ## Getting Started

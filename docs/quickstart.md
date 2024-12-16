@@ -17,7 +17,7 @@ Get up and running with AIGrok in minutes.
 3. Pull required model:
 
    ```bash
-   ollama pull llama2-vision
+   ollama pull llama3.2-vision:11b
    ```
 
 ## Basic Usage
@@ -26,51 +26,65 @@ Get up and running with AIGrok in minutes.
 
 ```bash
 # Basic document processing
-aigrok process document.pdf
+aigrok "Analyze this document" document.pdf
 
-# Process with custom prompt
-aigrok process --prompt "Extract main topics" document.pdf
+# Process with specific query
+aigrok "Extract main topics" document.pdf
 
 # Save output to file
-aigrok process document.pdf --output results.txt
+aigrok "Summarize this document" document.pdf -o results.txt
+
+# Process with OCR enabled for scanned documents
+aigrok "Extract text from scanned pages" document.pdf --easyocr
 ```
 
 ### 2. Configure AIGrok
 
 ```bash
-# Create default configuration
-aigrok config init
+# Configure the application
+aigrok --configure
 
-# Set preferred model
-aigrok config set model.default llama2-vision
+# Process with specific model
+aigrok "Analyze this" document.pdf --model llama3.2-vision:11b
 
-# Enable caching
-aigrok config set processing.cache true
+# Enable OCR with multiple languages
+aigrok "Extract text" document.pdf --easyocr --ocr-languages "en,fr,de"
 ```
 
-### 3. Batch Processing
+### 3. Output Formats
+
+```bash
+# Get JSON output
+aigrok "Analyze this" document.pdf -f json
+
+# Get Markdown output
+aigrok "Analyze this" document.pdf -f markdown
+```
+
+## Additional Features
+
+### OCR Support
+- Use `--easyocr` to enable OCR for scanned documents
+- Specify languages with `--ocr-languages` (e.g., 'en,fr,de')
+- Enable fallback with `--ocr-fallback` to continue if OCR fails
+
+### Model Selection
+- Default model is Ollama's llama3.2-vision:11b
+- Change model with `--model` flag
+- Supports various Ollama models
+
+## Planned Features
+
+> Note: The following features are planned for future releases.
+
+### Batch Processing
 
 ```bash
 # Process multiple files
-aigrok process *.pdf --output-dir results/
+aigrok "Analyze these documents" *.pdf --output-dir results/
 
 # Process with specific format
-aigrok process documents/*.pdf --format json
-```
-
-## Common Commands
-
-### Document Processing
-
-```bash
-# Extract text
-aigrok process document.pdf
-
-# Analyze content
-aigrok process --prompt "Summarize this" document.pdf
-
-# Extract specific information
-aigrok process --prompt "List all authors" paper.pdf
+aigrok "Extract text" documents/*.pdf -f json
 ```
 
 ### Cache Management
@@ -86,68 +100,22 @@ aigrok cache list
 aigrok cache export backup.json
 ```
 
-### Configuration
-
-```bash
-# Show current config
-aigrok config show
-
-# Edit config
-aigrok config edit
-
-# Reset config
-aigrok config reset
-```
-
-## Next Steps
-
-1. Read the [CLI Reference](cli.md) for detailed command usage
-2. Check [Configuration Guide](configuration.md) for advanced settings
-3. Visit [API Documentation](api.md) for programmatic usage
-4. Review [Troubleshooting Guide](troubleshooting.md) if you encounter issues
-
-## Examples
-
-### 1. Basic Text Extraction
-
-```bash
-aigrok process document.pdf --format text
-```
-
-### 2. JSON Output
-
-```bash
-aigrok process --format json document.pdf > data.json
-```
-
-### 3. Custom Analysis
-
-```bash
-aigrok process --prompt "Extract and list all citations" paper.pdf
-```
-
-### 4. Batch Processing with Progress
-
-```bash
-aigrok process --progress documents/*.pdf --output-dir analyzed/
-```
-
-## Tips
+## Tips and Best Practices
 
 1. **Performance**
-   - Enable caching for repeated processing
-   - Use batch processing for multiple files
-   - Configure appropriate timeouts
+   - Use appropriate models for your task
+   - Enable OCR only when needed
+   - Process files individually for best results
 
 2. **Output Formats**
    - Use `--format text` for plain text
    - Use `--format json` for structured data
    - Use `--format markdown` for formatted output
 
-3. **Resource Usage**
-   - Enable low memory mode if needed
-   - Monitor cache size
-   - Use appropriate batch sizes
+3. **OCR Usage**
+   - Enable for scanned documents
+   - Specify correct languages
+   - Use fallback for reliability
 
 ## Common Issues
 
@@ -155,7 +123,7 @@ aigrok process --progress documents/*.pdf --output-dir analyzed/
 
    ```bash
    # Fix by pulling the model
-   ollama pull llama2-vision
+   ollama pull llama3.2-vision:11b
    ```
 
 2. **Connection Issues**
@@ -175,5 +143,5 @@ aigrok process --progress documents/*.pdf --output-dir analyzed/
 ## Getting Help
 
 - Run `aigrok --help` for command help
-- Check [Documentation](README.md) for guides
-- Visit [GitHub Issues](https://github.com/yourusername/aigrok/issues) for support
+- Check [CLI Documentation](cli.md) for detailed options
+- Visit [Configuration Guide](configuration.md) for setup help

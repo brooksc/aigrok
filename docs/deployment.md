@@ -327,38 +327,6 @@ async def process_document():
     pass
 ```
 
-## Backup & Recovery
-
-### Backup Configuration
-
-```bash
-#!/bin/bash
-
-# Backup configuration
-backup_dir="/backups/aigrok"
-date_stamp=$(date +%Y%m%d_%H%M%S)
-
-# Create backup
-tar -czf "$backup_dir/config_$date_stamp.tar.gz" ~/.config/aigrok/
-```
-
-### Recovery Procedure
-
-1. Stop service:
-   ```bash
-   systemctl stop aigrok
-   ```
-
-2. Restore configuration:
-   ```bash
-   tar -xzf backup.tar.gz -C /
-   ```
-
-3. Restart service:
-   ```bash
-   systemctl start aigrok
-   ```
-
 ## Maintenance
 
 ### Health Checks
@@ -389,7 +357,8 @@ VACUUM ANALYZE processing_history;
 
 ### Log Rotation
 
-```conf
+```bash
+/etc/logrotate.d/aigrok:
 /var/log/aigrok/*.log {
     daily
     rotate 7
@@ -399,4 +368,3 @@ VACUUM ANALYZE processing_history;
     notifempty
     create 0640 aigrok aigrok
 }
-``` 

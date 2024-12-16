@@ -21,21 +21,24 @@ from .logging import configure_logging
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
     parser = argparse.ArgumentParser(
-        description="Process PDF documents with LLMs"
+        description="Process documents with LLMs",
+        usage="%(prog)s [options] PROMPT file ...",
+        prog="aigrok"
+    )
+    
+    # Version
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 0.3.1"
     )
     
     # Required arguments
     parser.add_argument(
         "files",
-        nargs="*",
-        help="PDF files to process"
-    )
-    
-    parser.add_argument(
-        "--prompt",
-        "-p",
-        type=str,
-        help="Prompt to send to the LLM"
+        nargs="+",
+        metavar="PROMPT/file",
+        help="prompt followed by files to process"
     )
     
     # Optional arguments
@@ -127,6 +130,9 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
             # Format each result with filename prefix (like grep)
             formatted_results = []
             for r in result:
+                if not isinstance(r, ProcessingResult):
+                    logger.warning(f"Unexpected result type: {type(r)}")
+                    continue
                 response = r.llm_response or r.text or ""
                 filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
                 if response:
@@ -145,11 +151,14 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
                 "llm_response": r.llm_response,
                 "error": r.error,
                 "filename": getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
-            } for r in result], indent=2)
+            } for r in result if isinstance(r, ProcessingResult)], indent=2)
         
         if format_type == "markdown":
             all_lines = []
             for r in result:
+                if not isinstance(r, ProcessingResult):
+                    logger.warning(f"Unexpected result type: {type(r)}")
+                    continue
                 filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
                 lines = [
                     f"# {filename}",
@@ -168,6 +177,10 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
                 all_lines.append("\n---\n")  # Separator between documents
             return "\n".join(all_lines)
     else:
+        if not isinstance(result, ProcessingResult):
+            logger.warning(f"Unexpected result type: {type(result)}")
+            return ""
+        
         if format_type == "text":
             response = result.llm_response or result.text or ""
             filename = getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
@@ -253,11 +266,18 @@ def main():
     """Main entry point for the CLI."""
     try:
         parser = create_parser()
+        
+        # Show help if no arguments provided
+        if len(sys.argv) == 1:
+            parser.print_help()
+            return 0
+            
         args = parser.parse_args()
         
         # Configure logging first
         configure_logging(args.verbose)
         
+        # Only log when verbose mode is enabled
         if args.verbose:
             logger.debug(f"Arguments: {args}")
             logger.debug(f"Verbose mode: {args.verbose}")
@@ -279,20 +299,26 @@ def main():
                 config_manager.config.ocr_languages = args.ocr_languages.split(',')
             config_manager.config.ocr_fallback = args.ocr_fallback
             config_manager.save_config()
+            if args.verbose:
+                logger.debug("Updated OCR configuration")
         
-        # Process files
-        logger.debug(f"Processing files: {args.files}")
-        
-        # First argument is actually the prompt if no -p/--prompt was specified
-        prompt = args.prompt if args.prompt else args.files[0]
-        patterns = args.files[1:] if not args.prompt else args.files
-        
+        # First argument is the prompt, rest are files
+        if len(args.files) < 2:  # Need at least prompt + one file
+            print("Error: Must provide both a prompt and at least one file")
+            print("Usage: aigrok PROMPT file [file ...]")
+            return
+            
+        prompt = args.files[0]
+        patterns = args.files[1:]
+
         if not args.configure and not patterns:
             print("Error: No input files specified")
             return
 
+        if args.verbose:
+            logger.debug(f"Processing files: {patterns}")
+
         # Expand glob patterns in file arguments
-        import glob
         files = []
         for pattern in patterns:
             matched_files = glob.glob(pattern)
@@ -300,15 +326,31 @@ def main():
                 print(f"Error: File not found: {pattern}")
                 return
             files.extend(matched_files)
+
+        # Initialize processor with verbose setting
+        processor = PDFProcessor(config_manager=config_manager, verbose=args.verbose)
         
-        results = process_file(files, prompt)
-        # Show filenames only if multiple files were matched
-        show_filenames = len(files) > 1
-        print(format_output(results, args.format, show_filenames))
-                
+        # Process files and format output
+        results = []
+        for file in files:
+            result = processor.process_file(file, prompt)
+            results.append(result)
+        
+        # Format output
+        output = format_output(results[0] if len(results) == 1 else results, args.format, len(files) > 1)
+        
+        if args.output:
+            with open(args.output, 'w') as f:
+                f.write(output)
+            if args.verbose:
+                logger.debug(f"Output written to {args.output}")
+        else:
+            print(output)
+            
     except Exception as e:
-        logger.error(f"Error in main: {e}")
-        print(f"Error: {e}")
+        print(f"Error: {str(e)}", file=sys.stderr)
+        if args.verbose:
+            logger.exception("An error occurred")
         sys.exit(1)
 
 if __name__ == "__main__":

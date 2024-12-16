@@ -1,4 +1,44 @@
-# Release History
+  # Release History
+
+## v0.3.1 (2024-12-15)
+
+### Changes
+* Renamed HISTORY.md to CHANGELOG.md for better project conventions
+* Fixed version numbering to follow semantic versioning
+* Updated documentation references to reflect new changelog name
+* Improved project organization and documentation consistency
+
+### Testing Improvements
+* Added new test files:
+  - test_cli.py for CLI interface testing
+  - test_logging.py for logging system tests
+  - test_ocr.py for OCR functionality tests
+  - test_pdf_processor.py for PDF processing tests
+* Enhanced test framework with services.py for better test isolation
+* Updated conftest.py with improved fixtures and configurations
+* Added comprehensive test coverage reporting with pytest-cov
+* Current test coverage metrics:
+  - Core Components: 53% overall coverage
+  - High Coverage Components (90%+):
+    - API Layer: 100%
+    - Type System: 100%
+    - Logging: 100%
+    - Core Init: 100%
+  - Medium Coverage Components (60-89%):
+    - CLI Interface: 65%
+    - Validation: 62%
+  - Areas for Improvement (< 60%):
+    - PDF Processing: 42%
+    - Configuration: 36%
+    - Format Handling: 36%
+* Added pytest-cov integration for coverage reporting
+* Added comprehensive test documentation in docs/testing.md
+* Improved test organization and cleanup procedures
+* Established test coverage targets:
+  - Core Components: 90%
+  - API Endpoints: 85%
+  - CLI Interface: 80%
+  - Error Handlers: 95%
 
 ## v0.3.0 (2024-12-15)
 

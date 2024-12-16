@@ -45,9 +45,10 @@ class AigrokConfig(BaseModel):
     text_model: ModelConfig
     vision_model: ModelConfig
     audio_model: Optional[ModelConfig] = None
-    ocr_enabled: bool = False
+    ocr_enabled: bool = Field(default=True)
     ocr_languages: List[str] = Field(default_factory=lambda: ["en"])
-    ocr_fallback: bool = False
+    ocr_fallback: bool = Field(default=False)
+    ocr_confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     
     class Config:
         extra = "allow"
@@ -215,12 +216,17 @@ class ConfigManager:
         
     def _load_config(self):
         """Load configuration from file."""
-        if not self.CONFIG_FILE.exists():
-            return
-            
         try:
-            with open(self.CONFIG_FILE) as f:
-                config_dict = yaml.safe_load(f)
+            # Create config directory if it doesn't exist
+            self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+            # If config file doesn't exist, initialize with empty config
+            if not self.CONFIG_FILE.exists():
+                self.config = None
+                return
+
+            with open(self.CONFIG_FILE, 'r') as f:
+                config_dict = yaml.safe_load(f) or {}  # Handle empty file case
                 
             # Convert old config format
             if config_dict.get('ocr') and isinstance(config_dict['ocr'], dict):
@@ -233,12 +239,17 @@ class ConfigManager:
             for model_key in ['text_model', 'vision_model', 'audio_model']:
                 if model_key in config_dict:
                     model = config_dict[model_key]
-                    if 'api_base' in model:
-                        model['endpoint'] = model.pop('api_base')
-                    if 'api_key' in model:
-                        model.pop('api_key')
+                    if isinstance(model, dict):
+                        if 'api_base' in model:
+                            model['endpoint'] = model.pop('api_base')
+                        if 'api_key' in model:
+                            model.pop('api_key')
             
-            self.config = AigrokConfig(**config_dict)
+            # Only try to create AigrokConfig if we have required fields
+            if 'text_model' in config_dict and 'vision_model' in config_dict:
+                self.config = AigrokConfig(**config_dict)
+            else:
+                self.config = None
         except Exception as e:
             logger.error(f"Error loading config: {e}")
             self.config = None
@@ -368,7 +379,7 @@ class ConfigManager:
             vision_models = []
             audio_models = []
             
-            for model in models['models']:
+            for model in models:
                 name = model['name']
                 # Vision models typically have 'vision' in their name
                 if 'vision' in name.lower():
@@ -398,8 +409,12 @@ class ConfigManager:
                 ocr_fallback=False,
                 text_model=ModelConfig(
                     provider='ollama',
-                    model_name='mistral',
+                    model_name='llama3.2:3b',
                     endpoint='http://localhost:11434'
+                ),
+                vision_model=ModelConfig(
+                    provider='ollama',
+                    model_name='llama3.2-vision:11b',
                 )
             )
             self.save_config()
@@ -450,6 +465,13 @@ class ConfigManager:
             current_fallback = self.config.ocr_fallback if self.config else False
             fallback = input(f"\nEnable OCR fallback? (y/N) [{current_fallback and 'y' or 'N'}]: ").strip().lower()
             config_dict["ocr_fallback"] = fallback == 'y' or (not fallback and current_fallback)
+            
+            current_threshold = self.config.ocr_confidence_threshold if self.config else 0.5
+            threshold = input(f"\nEnter OCR confidence threshold (0.0-1.0) [{current_threshold}]: ").strip()
+            if threshold:
+                config_dict["ocr_confidence_threshold"] = float(threshold)
+            else:
+                config_dict["ocr_confidence_threshold"] = current_threshold
         
         # Create and validate config
         try:
@@ -464,7 +486,7 @@ class ConfigManager:
             if self.config.audio_model:
                 print(f"- Audio: {self.config.audio_model.provider} / {self.config.audio_model.model_name}")
             if self.config.ocr_enabled:
-                print(f"- OCR: enabled={self.config.ocr_enabled}, languages={self.config.ocr_languages}, fallback={self.config.ocr_fallback}")
+                print(f"- OCR: enabled={self.config.ocr_enabled}, languages={self.config.ocr_languages}, fallback={self.config.ocr_fallback}, confidence_threshold={self.config.ocr_confidence_threshold}")
         except Exception as e:
             print(f"\nError saving configuration: {e}")
             raise

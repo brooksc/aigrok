@@ -28,9 +28,9 @@ class PDFProcessingResult(ProcessingResult):
 class PDFProcessor:
     """Processor for PDF documents."""
     
-    def __init__(self, config_manager: Optional[ConfigManager] = None):
+    def __init__(self, config_manager: Optional[ConfigManager] = None, verbose: bool = False):
         """Initialize PDF processor with optional configuration."""
-        configure_logging()
+        self.verbose = verbose
         logger.debug("Initializing PDF processor")
         self.config_manager = config_manager or ConfigManager()
         
@@ -39,12 +39,14 @@ class PDFProcessor:
         
         # Initialize OCR if enabled
         if self.config_manager.config.ocr_enabled:
-            logger.info(f"Initializing EasyOCR with languages: {self.config_manager.config.ocr_languages}")
+            if self.verbose:
+                logger.info(f"Initializing EasyOCR with languages: {self.config_manager.config.ocr_languages}")
             try:
                 self.reader = easyocr.Reader(self.config_manager.config.ocr_languages)
             except Exception as e:
                 if self.config_manager.config.ocr_fallback:
-                    logger.warning(f"Failed to initialize OCR: {e}. Continuing without OCR due to fallback setting.")
+                    if self.verbose:
+                        logger.warning(f"Failed to initialize OCR: {e}. Continuing without OCR due to fallback setting.")
                     self.reader = None
                 else:
                     raise RuntimeError(f"Failed to initialize OCR: {e}")
@@ -300,16 +302,31 @@ class PDFProcessor:
                     ocr_confidence = total_conf / len(ocr_results)
                     logger.debug(f"OCR confidence: {ocr_confidence:.2%}")
             
-            # If we have OCR results, use text model instead of vision
-            if ocr_text and ocr_confidence and ocr_confidence > 0.8:
-                logger.debug("Using text model with OCR results")
-                combined_text = self._combine_text("", ocr_text)  # Only use OCR text since PDF text is empty
-                llm_response = self._query_llm(
-                    prompt=prompt,
-                    context=combined_text,
-                    provider=self.text_provider
-                )
-            elif content_type == 'images_only' and self.vision_provider:
+            # If we have OCR results with reasonable confidence, try text model first
+            if ocr_text and ocr_confidence and ocr_confidence > 0.5:
+                logger.debug(f"Using text model with OCR results (confidence: {ocr_confidence:.2%})")
+                try:
+                    combined_text = self._combine_text("", ocr_text)
+                    llm_response = self._query_llm(
+                        prompt=prompt,
+                        context=combined_text,
+                        provider=self.text_provider
+                    )
+                    if llm_response and not llm_response.startswith("Error:"):
+                        return ProcessingResult(
+                            success=True,
+                            text=combined_text,
+                            page_count=len(doc),
+                            llm_response=llm_response,
+                            metadata=metadata
+                        )
+                    else:
+                        logger.debug("Text model failed to provide valid response, falling back to vision model")
+                except Exception as e:
+                    logger.debug(f"Text model processing failed: {e}, falling back to vision model")
+                    
+            # Fall back to vision model if text model fails or confidence is too low
+            if content_type == 'images_only' and self.vision_provider:
                 logger.debug("Sending to vision LLM for analysis")
                 llm_response = self._query_llm(
                     prompt=prompt,
@@ -326,19 +343,37 @@ class PDFProcessor:
                 )
             logger.debug(f"LLM response: {llm_response[:100]}...")
             
-            return PDFProcessingResult(
+            if prompt:
+                try:
+                    return ProcessingResult(
+                        success=True,
+                        text=combined_text,
+                        page_count=len(doc),
+                        llm_response=llm_response,
+                        metadata=metadata
+                    )
+                except Exception as e:
+                    logger.error(f"Error querying LLM: {e}")
+                    return ProcessingResult(
+                        success=False,
+                        text=None,
+                        page_count=None,
+                        llm_response=None,
+                        error=f"Error querying LLM: {e}",
+                        metadata=metadata
+                    )
+            
+            # Return text only if no prompt
+            return ProcessingResult(
                 success=True,
                 text=combined_text,
-                metadata=metadata,
                 page_count=len(doc),
-                ocr_text=ocr_text,
-                ocr_confidence=ocr_confidence,
-                llm_response=llm_response
+                metadata=metadata
             )
             
         except Exception as e:
             logger.error(f"Failed to process file: {e}")
-            return PDFProcessingResult(
+            return ProcessingResult(
                 success=False,
                 error=str(e)
             )

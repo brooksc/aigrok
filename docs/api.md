@@ -254,16 +254,25 @@ except ProcessingError as e:
 
 ## Rate Limiting
 
+### Rate Limiting
+
+The API includes built-in rate limiting to prevent overloading services:
+
 ```python
 from aigrok import RateLimit
 
 # Configure rate limits
 RateLimit.configure(
-    requests_per_minute=100,
-    concurrent_requests=20,
-    tokens_per_request=8000
+    requests_per_minute=100,  # Maximum requests per minute
+    concurrent_requests=20,   # Maximum concurrent requests
+    tokens_per_request=8000   # Maximum tokens per request
 )
 ```
+
+This is particularly important when:
+- Processing large batches of documents
+- Using paid API services
+- Running in production environments
 
 ## Best Practices
 

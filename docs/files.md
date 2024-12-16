@@ -9,7 +9,7 @@ This document provides a comprehensive overview of all files in the AIGrok repos
 - `README.md` - Project overview, features, and getting started guide
 - `CONTRIBUTING.md` - Contribution guidelines and development setup
 - `LICENSE` - MIT license file
-- `HISTORY.md` - Project changelog and version history
+- `CHANGELOG.md` - Project changelog and version history
 - `pyproject.toml` - Project metadata and build system requirements
 - `setup.py` - Package installation configuration
 - `requirements.txt` - Project dependencies

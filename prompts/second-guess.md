@@ -7,7 +7,7 @@ Review recent code changes to ensure no regressions or unintended removals. Pay 
 - For each deleted block:
   - Verify functionality is either preserved elsewhere or intentionally removed
   - Check for any hidden dependencies on deleted code
-  - Document any important removed code in HISTORY.md
+  - Document any important removed code in CHANGELOG.md
   - Consider if removed code had important error handling or edge cases
 
 ## 2. Recent Changes Analysis (2024-12-15)

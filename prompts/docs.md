@@ -18,7 +18,7 @@ This prompt guides you through updating project documentation.
    - Update inline comments
 
 4. Update changelog
-   - Add new features to HISTORY.md
+   - Add new features to CHANGELOG.md
    - Document breaking changes
    - Note deprecations
 

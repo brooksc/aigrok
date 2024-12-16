@@ -13,12 +13,35 @@ Run tests with: `TEST_MODE=mock|e2e pytest`
 
 #### 1.1 Basic CLI Functionality
 
-Test #1.1.1: Verify help command output [TODO]
+Test #1.1.1: Verify Unix-style help behavior
+- Test inputs: Run `aigrok` without arguments
+- Expected output: Help text in Unix format with usage, options, and examples
+- Evaluation: Assert help text contains:
+  - Usage line: "usage: aigrok [options] [file ...]"
+  - Prompt usage: "aigrok -p PROMPT [options] file ..."
+  - Standard sections: "positional arguments:", "optional arguments:"
+
+Test #1.1.2: Verify help command output
+- Test inputs: `aigrok -h` or `aigrok --help`
+- Expected output: Same help text as running without arguments
+- Evaluation: String comparison of help text sections
+
+Test #1.1.3: Verify version output
+- Test inputs: `aigrok --version`
+- Expected output: Version string in format "aigrok x.y.z"
+- Evaluation: Regex match against version pattern
+
+Test #1.1.4: Verify error handling
+- Test inputs: Invalid arguments or missing required arguments
+- Expected output: Error message and help text
+- Evaluation: Assert error message and help text are displayed
+
+Test #1.1.5: Verify help command output [TODO]
 - Test inputs: `aigrok -h`
 - Expected output: Help text containing usage instructions, available commands, and options
 - Evaluation: String comparison of help text sections and command descriptions
 
-Test #1.1.2: Verify version output [TODO]
+Test #1.1.6: Verify version output [TODO]
 - Test inputs: `aigrok --version`
 - Expected output: Version string in format "x.y.z"
 - Evaluation: Regex match against version pattern
@@ -47,15 +70,15 @@ Test #1.2.4: Markdown output format [mock, e2e]
 
 ### 2. Logging Tests
 
-Test #2.1.1: Verify logging disabled by default
-- Test inputs: Configure logging with verbose=False
-- Expected output: No log output to stderr
-- Evaluation: Assert stderr is empty
+Test #2.1.1: Verify logging control via verbose flag
+- Test inputs: Run CLI with and without --verbose flag
+- Expected output: Debug logs in stderr with --verbose, no debug logs without --verbose
+- Evaluation: Assert stderr contains debug logs only when --verbose is set
 
-Test #2.2.1: Verify debug logging with verbose flag
-- Test inputs: Configure logging with verbose=True
+Test #2.1.2: Verify log level with verbose mode
+- Test inputs: Enable verbose mode with --verbose
 - Expected output: Debug level messages in stderr
-- Evaluation: Assert debug messages present in stderr
+- Evaluation: Assert log messages contain expected debug information
 
 ### 3. PDF Processing Tests
 
@@ -154,6 +177,26 @@ Test #6.1.2: File access restrictions [TODO]
 - Expected output: Access denied errors
 - Evaluation: Security boundary checks
 
+## Test Coverage Requirements
+
+### Minimum Coverage Targets
+
+- Core Components: 90%
+- API Endpoints: 85%
+- CLI Interface: 80%
+- Error Handlers: 95%
+
+### Coverage Reporting
+
+```bash
+# Generate coverage report
+pytest --cov=aigrok tests/
+
+# Generate HTML report
+pytest --cov=aigrok --cov-report=html tests/
+```
+
+
 ## Test Implementation
 
 ### Test Structure
@@ -199,26 +242,6 @@ python tests/run_cached_tests.py --category api_tests
 # Run with debug logging
 python tests/run_cached_tests.py --verbose
 ```
-
-## Test Coverage Requirements
-
-### Minimum Coverage Targets
-
-- Core Components: 90%
-- API Endpoints: 85%
-- CLI Interface: 80%
-- Error Handlers: 95%
-
-### Coverage Reporting
-
-```bash
-# Generate coverage report
-pytest --cov=aigrok tests/
-
-# Generate HTML report
-pytest --cov=aigrok --cov-report=html tests/
-```
-
 
 ## Test Data Management
 

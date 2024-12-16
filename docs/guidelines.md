@@ -67,4 +67,4 @@ def test_provider_integration():
 2. Implement changes
 3. Add/update tests
 4. Update documentation
-5. Update HISTORY.md for significant changes
+5. Update CHANGELOG.md for significant changes

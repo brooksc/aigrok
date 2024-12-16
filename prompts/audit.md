@@ -19,7 +19,7 @@ This prompt guides you through auditing changes since the last checkpoint.
 
 4. Review documentation sync
    - Check if README is up to date
-   - Verify HISTORY.md reflects changes
+   - Verify CHANGELOG.md reflects changes
    - Update API documentation if needed
 
 5. Security audit
@@ -58,7 +58,7 @@ This prompt guides you through auditing changes since the last checkpoint.
      * Verify they are not referenced elsewhere
      * Check for hidden dependencies
      * Ensure no active features depend on them
-     * Document the removal in HISTORY.md
+     * Document the removal in CHANGELOG.md
      * Create a backup if needed
    - After cleanup:
      * Run all tests to verify no regressions

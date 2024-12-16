@@ -3,7 +3,7 @@ requires = ["setuptools>=69.0.2"]
 build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
-addopts = "-v"
+addopts = "-v --cov=aigrok --cov-report=term-missing"
 testpaths = ["tests"]
 filterwarnings = [
     "ignore::DeprecationWarning:pkg_resources.*:",
@@ -19,7 +19,7 @@ filterwarnings = [
 
 [project]
 name = "aigrok"
-version = "0.3.0"
+version = "0.3.1"
 description = "A Python package for document processing and analysis with LLM integration and OCR capabilities"
 authors = [
     {name = "aigrok", email = "brooksc@brooksc.com"},
@@ -41,6 +41,7 @@ dependencies = [
     "pypdf>=5.1.0",
     "python-dotenv>=1.0.0",
     "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
     "pydantic>=2.5.2",
     "loguru>=0.7.2",
     "requests>=2.31.0",

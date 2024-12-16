@@ -7,184 +7,122 @@ AIGrok provides a powerful command-line interface for processing and analyzing d
 The basic syntax for AIGrok commands is:
 
 ```bash
-aigrok [OPTIONS] COMMAND [ARGS]
+aigrok [options] PROMPT file ...
 ```
 
-## Global Options
+Where:
+- `PROMPT` is the instruction for processing the documents (required)
+- `file` is one or more files to process (required)
+
+## Currently Implemented Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--config FILE` | Path to config file | `~/.config/aigrok/config.yaml` |
-| `--verbose, -v` | Enable debug logging output | `false` (logging disabled by default) |
-| `--quiet` | Suppress all output except errors | `false` |
-| `--log-level LEVEL` | Set logging level (debug/info/warn/error) | `info` |
+| `--format, -f` | Output format (text/json/markdown) | `text` |
+| `--configure` | Configure the application | - |
+| `--model` | Model to use for analysis | `llama3.2-vision:11b` |
+| `--output, -o` | Path to save output (defaults to stdout) | stdout |
+| `--type` | Input file type (pdf/txt) | auto-detect |
+| `--metadata-only` | Only extract document metadata | `false` |
+| `--verbose, -v` | Enable verbose logging | `false` |
 | `--version` | Show version information | - |
 | `--help` | Show help message | - |
-| `--configure` | Run interactive configuration wizard | - |
 
-## Commands
-
-### process
-
-Process one or more documents with AI analysis.
-
-```bash
-aigrok process [OPTIONS] [FILES...]
-```
-
-#### Options
+### OCR Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--model NAME` | AI model to use | `gpt-4-vision` |
-| `--prompt TEXT` | Custom processing prompt | - |
-| `--format FORMAT` | Output format (text/json/markdown) | `text` |
-| `--output FILE` | Output file path | stdout |
-| `--cache` | Enable result caching | `false` |
-| `--timeout SECONDS` | Processing timeout | `30` |
-| `--easyocr` | Enable OCR processing of images in PDFs | `false` |
-| `--ocr-languages LANGS` | Comma-separated list of OCR languages | `en` |
-| `--ocr-fallback` | Continue processing if OCR fails | `false` |
+| `--easyocr` | Enable OCR for scanned documents | `false` |
+| `--ocr-languages` | EasyOCR language codes (comma-separated) | `en` |
+| `--ocr-fallback` | Continue if OCR fails | `false` |
 
-#### Examples
+## Examples
+
+### Basic Usage
 
 ```bash
-# Basic document processing
-aigrok process document.pdf
+# Process a single document
+aigrok "Analyze this document" document.pdf
 
-# Process multiple documents
-aigrok process doc1.pdf doc2.pdf doc3.pdf
+# Process with specific model
+aigrok "Extract text" document.pdf --model llama3.2-vision:11b
 
-# Output Format
-When processing multiple files:
-- Text format: Each result is prefixed with the filename (like grep)
-- JSON format: Results include filenames and full metadata
-- Markdown format: Each section is titled with the filename
-
-# Custom prompt with specific model
-aigrok process --model llama2-vision --prompt "Summarize this document" document.pdf
-
-# Enable OCR with multiple languages
-aigrok process --easyocr --ocr-languages "en,fr,de" document.pdf
-
-# Process with OCR fallback
-aigrok process --easyocr --ocr-fallback document.pdf
+# Save output to file
+aigrok "Summarize" document.pdf -o summary.txt
 ```
 
-### validate
-
-Validate document format and compatibility.
+### OCR Processing
 
 ```bash
-aigrok validate [OPTIONS] FILE
+# Enable OCR for scanned documents
+aigrok "Extract text" scan.pdf --easyocr
+
+# OCR with multiple languages
+aigrok "Extract text" scan.pdf --easyocr --ocr-languages "en,fr,de"
+
+# OCR with fallback
+aigrok "Extract text" scan.pdf --easyocr --ocr-fallback
 ```
 
-#### Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--strict` | Enable strict validation | `false` |
-| `--report` | Generate validation report | `false` |
-
-#### Examples
+### Output Formats
 
 ```bash
-# Basic validation
-aigrok validate document.pdf
+# Get JSON output
+aigrok "Analyze" doc.pdf -f json
 
-# Strict validation with report
-aigrok validate --strict --report document.pdf
+# Get Markdown output
+aigrok "Analyze" doc.pdf -f markdown
+
+# Save formatted output
+aigrok "Analyze" doc.pdf -f markdown -o analysis.md
 ```
 
-### cache
+## Planned Features
 
-Manage the processing cache.
+> Note: The following features are planned for future releases.
+
+### Batch Processing
 
 ```bash
-aigrok cache COMMAND [OPTIONS]
+# Process multiple files (planned)
+aigrok "Analyze these documents" *.pdf -o results/
+
+# Process with progress tracking (planned)
+aigrok "Extract text" docs/*.pdf --progress
 ```
 
-#### Subcommands
-
-- `list`: List cached results
-- `clear`: Clear the cache
-- `info`: Show cache information
-- `export`: Export cache to file
-
-#### Examples
+### Cache Management (Planned)
 
 ```bash
+# Clear cache
+aigrok cache clear
+
 # List cached results
 aigrok cache list
 
-# Clear entire cache
-aigrok cache clear
-
-# Export cache to file
-aigrok cache export --output cache-backup.json
+# Export cache
+aigrok cache export backup.json
 ```
 
-### config
-
-Manage AIGrok configuration.
+### Configuration Management (Planned)
 
 ```bash
-aigrok config COMMAND [OPTIONS]
-```
-
-#### Subcommands
-
-- `show`: Show current configuration
-- `set`: Set configuration value
-- `reset`: Reset to default configuration
-
-#### Examples
-
-```bash
-# Show current configuration
+# Show current config
 aigrok config show
 
-# Set model preference
-aigrok config set model.default gpt-4-vision
+# Set configuration values
+aigrok config set model.default llama3.2-vision:11b
 
-# Reset configuration
+# Reset to defaults
 aigrok config reset
 ```
 
-### configure
-
-Run the interactive configuration wizard.
-
-```bash
-aigrok configure [OPTIONS]
-```
-
-#### Options
-
-| Option | Description | Default |
-|--------|-------------|---------|
-| `--reset` | Reset configuration to defaults | `false` |
-| `--show` | Show current configuration | `false` |
-| `--validate` | Validate current configuration | `false` |
-
-#### Examples
-
-```bash
-# Configure aigrok
-aigrok configure
-
-# Show current configuration
-aigrok configure --show
-```
-
-## Environment Variables
-
-AIGrok respects the following environment variables:
+## Environment Variables (Planned)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `AIGROK_CONFIG` | Configuration file path | `~/.config/aigrok/config.yaml` |
-| `AIGROK_MODEL` | Default model | `gpt-4-vision` |
+| `AIGROK_MODEL` | Default model | `llama3.2-vision:11b` |
 | `AIGROK_CACHE_DIR` | Cache directory | `~/.cache/aigrok` |
 | `AIGROK_LOG_LEVEL` | Logging level | `info` |
 
@@ -199,51 +137,53 @@ AIGrok respects the following environment variables:
 | 4 | Processing error |
 | 5 | Timeout error |
 
-## Configuration File
+## Configuration File Format (Planned)
 
-The configuration file (default: `~/.config/aigrok/config.yaml`) can be used to set default values for all command-line options. Example:
+The configuration file (default: `~/.config/aigrok/config.yaml`) will support:
 
 ```yaml
 model:
-  default: gpt-4-vision
-  fallback: llama2-vision
+  default: llama3.2-vision:11b
+  fallback: llama2
 
 processing:
   timeout: 30
   cache: true
   format: text
 
+ocr:
+  enabled: false
+  languages: ["en"]
+  fallback: true
+
 logging:
   level: info
   file: ~/.local/share/aigrok/aigrok.log
 ```
 
+## Common Issues
+
+1. "Model not found":
+   - Ensure Ollama is installed and running
+   - Pull the required model: `ollama pull llama3.2-vision:11b`
+
+2. "OCR initialization failed":
+   - Install EasyOCR dependencies
+   - Use `--ocr-fallback` for graceful degradation
+
+3. "File not found":
+   - Check file path and permissions
+   - Ensure file exists and is readable
+
 ## Tips and Tricks
 
 1. Use `--verbose` for debugging issues
-2. Enable caching for faster repeated processing
-3. Use environment variables in scripts
-4. Create aliases for common commands
-
-## Common Issues
-
-1. **Timeout Errors**
-   - Increase timeout with `--timeout`
-   - Use a faster model
-   - Check network connection
-
-2. **Memory Issues**
-   - Process smaller documents
-   - Use `--low-memory` option
-   - Clear cache regularly
-
-3. **Model Errors**
-   - Verify model availability
-   - Check API credentials
-   - Try fallback model
+2. Specify OCR languages for better accuracy
+3. Use markdown output for formatted results
+4. Enable OCR fallback for reliable processing
 
 ## See Also
 
-- [API Documentation](api.md) for programmatic usage
-- [Configuration Guide](configuration.md) for detailed config options
-- [Troubleshooting Guide](troubleshooting.md) for common issues
+- [Quickstart Guide](quickstart.md)
+- [Configuration Guide](configuration.md)
+- [API Documentation](api.md)

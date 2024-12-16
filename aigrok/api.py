@@ -15,8 +15,8 @@ from .pdf_processor import PDFProcessor, ProcessingResult
 class OutputSchema(BaseModel):
     """Schema for structured output."""
     model_config = ConfigDict(strict=True)
-    format: Literal["json", "csv"] = Field(..., description="Output format (json or csv)")
-    schema_def: Union[str, List[str]] = Field(..., description="JSON schema example or CSV column names")
+    format: Literal["json", "csv", "markdown"] = Field(..., description="Output format (json, csv, or markdown)")
+    schema_def: Union[str, List[str]] = Field(..., description="JSON schema example, CSV column names, or markdown template")
 
 class ProcessRequest(BaseModel):
     """Request model for PDF processing."""
@@ -59,12 +59,17 @@ class APIProcessor:
             {schema}
             
             Respond ONLY with the JSON data, no other text."""
-        else:  # csv
+        elif format_type == "csv":
             columns = ", ".join(schema if isinstance(schema, list) else schema.split(","))
             return f"""Analyze the document and extract information in CSV format with these columns:
             {columns}
             
             Respond ONLY with the CSV data (no headers), with values separated by commas."""
+        else:  # markdown
+            return f"""Analyze the document and extract information in markdown format using the following template:
+            {schema}
+            
+            Respond ONLY with the markdown text."""
     
     def _validate_structured_output(self, output: str, schema: OutputSchema) -> bool:
         """Validate the structured output against the schema."""
@@ -75,12 +80,15 @@ class APIProcessor:
                 result = json.loads(output)
                 # Check if all keys in example exist in result
                 return all(key in result for key in example.keys())
-            else:  # csv
+            elif schema.format == "csv":
                 # Validate CSV structure
                 expected_columns = len(schema.schema_def if isinstance(schema.schema_def, list) else schema.schema_def.split(","))
                 reader = csv.reader(StringIO(output))
                 row = next(reader)
                 return len(row) == expected_columns
+            else:  # markdown
+                # No validation for markdown format
+                return True
         except Exception:
             return False
     
@@ -163,7 +171,7 @@ class APIClient:
             if request.output_schema:
                 request_data["output_schema"] = {
                     "format": request.output_schema.format,
-                    "schema": request.output_schema.schema_def
+                    "schema_def": request.output_schema.schema_def
                 }
             
             request = ProcessRequest(**request_data)
