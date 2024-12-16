@@ -101,3 +101,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Thanks to all contributors
 - Built with [Ollama](https://ollama.ai/)
 - Inspired by the need for better document analysis tools
+- 90% of this project was written by AI using Cursor or Windsurf with Anthropic's Claude.
+

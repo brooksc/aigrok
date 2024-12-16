@@ -1,5 +1,38 @@
 # Release History
 
+## v0.3.0 (2024-12-15)
+
+### Major Features
+* Enhanced OCR service with improved error handling
+* Added support for multiple image formats in OCR processing
+* Improved test isolation and reliability
+* Enhanced error handling and validation
+
+### Architecture Improvements
+* Improved test suite organization
+* Enhanced error handling in OCR service
+* Better test isolation with temporary directories
+* Improved configuration handling
+
+### Testing Improvements
+* Added comprehensive OCR service tests
+* Improved test file management
+* Enhanced mock and e2e test separation
+* Better test cleanup and isolation
+
+### Code Quality
+* Removed empty directories and unused files
+* Cleaned up build artifacts and cache directories
+* Updated .gitignore for better project organization
+* Improved test directory structure
+* Removed redundant test files and configurations
+
+### Documentation
+* Updated README with latest features
+* Improved API documentation
+* Enhanced testing documentation
+* Added detailed error handling documentation
+
 ## v0.2.6 (2024-12-15)
 
 ### Major Features
@@ -51,6 +84,13 @@
 * Improved test fixtures and helper functions
 * Added mocking infrastructure for external services
 * Added timeout and error handling tests
+
+### Code Cleanup (2024-12-15)
+* Removed empty directories (tests/logs, docs/spec)
+* Cleaned up build artifacts and cache directories
+* Updated .gitignore to exclude build artifacts and cache directories
+* Improved test directory structure
+* Removed redundant test files and configurations
 
 ### Documentation
 * Updated configuration documentation with new options

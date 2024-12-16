@@ -1,15 +1,21 @@
 """
 Common types and data structures.
 """
-from dataclasses import dataclass
 from typing import Optional, Dict, Any
+from pathlib import Path
+from pydantic import BaseModel, Field, ConfigDict
 
-@dataclass
-class ProcessingResult:
+class ProcessingResult(BaseModel):
     """Result of processing a PDF file."""
+    model_config = ConfigDict(
+        extra='forbid',
+        validate_default=True
+    )
+    
     success: bool
     text: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
-    page_count: int = 0
+    page_count: int = Field(default=0, ge=0)
     error: Optional[str] = None
-    llm_response: Optional[Any] = None 
+    llm_response: Optional[Any] = None
+    filename: Optional[str] = None  # Path to the processed file

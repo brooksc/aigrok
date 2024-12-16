@@ -9,13 +9,18 @@ filterwarnings = [
     "ignore::DeprecationWarning:pkg_resources.*:",
     "ignore::DeprecationWarning:litellm.*:",
     "ignore::pytest.PytestCollectionWarning",
-    "ignore::pydantic.PydanticDeprecatedSince20"
+    "ignore::pydantic.PydanticDeprecatedSince20",
+    # SWIG-related warnings from PyMuPDF
+    "ignore::DeprecationWarning:importlib._bootstrap:488",
+    "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
+    "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning"
 ]
 
 [project]
 name = "aigrok"
-version = "0.2.2"
-description = "A Python package for document processing and analysis with LLM integration"
+version = "0.3.0"
+description = "A Python package for document processing and analysis with LLM integration and OCR capabilities"
 authors = [
     {name = "aigrok", email = "brooksc@brooksc.com"},
 ]
@@ -42,7 +47,9 @@ dependencies = [
     "pillow>=10.1.0",
     "ollama>=0.1.6",
     "litellm>=1.30.3",
-    "pymupdf>=1.23.8"  # Added for fitz module
+    "pymupdf>=1.23.8",
+    "pyyaml>=6.0.1",  # For configuration
+    "easyocr>=1.7.1",  # For OCR text extraction from images
 ]
 
 [project.urls]

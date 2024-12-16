@@ -18,6 +18,16 @@ wheels/
 *.egg
 MANIFEST
 
+# Build
+dist/
+aigrok.egg-info/
+
+# Cache
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
 # Virtual Environment
 .env
 .venv
@@ -26,6 +36,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.local/
 
 # Local development settings
 *.local
@@ -45,11 +56,14 @@ config.local.yml
 *.log
 *.sqlite
 *.db
+tests/logs/
+
+# Documentation
+docs/spec/
 
 # Testing
 .coverage
 htmlcov/
-.pytest_cache/
 .tox/
 .nox/
 coverage.xml
@@ -63,7 +77,6 @@ coverage.xml
 *.spec
 pip-log.txt
 pip-delete-this-directory.txt
-dist/
 build/
 *.egg-info/
 
@@ -79,9 +92,7 @@ build/
 .mypy_cache/
 .dmypy.json
 dmypy.json
-.ruff_cache/
 tests/.cache/
-tests/logs/
 
 # Project specific
 llm_cache/

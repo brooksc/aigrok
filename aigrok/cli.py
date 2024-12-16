@@ -15,13 +15,8 @@ from .formats import validate_format, get_supported_formats
 from .config import ConfigManager, AigrokConfig
 import csv
 import io
-import logging
-
-def setup_logger(verbose: bool = False):
-    """Configure logging based on verbosity level."""
-    logger.remove()  # Remove default handler
-    if verbose:
-        logger.add(sys.stderr, level="DEBUG")
+import glob
+from .logging import configure_logging
 
 def create_parser() -> argparse.ArgumentParser:
     """Create and configure the argument parser."""
@@ -110,21 +105,36 @@ def create_parser() -> argparse.ArgumentParser:
         help="Continue processing even if OCR fails. This ensures the document is processed using standard text extraction even if OCR encounters errors. Example: --ocr-fallback"
     )
     
+    # TODO(cli): Add --version command
+    # - Add version command to CLI parser
+    # - Return version from pyproject.toml
+    
     return parser
 
-def format_output(result: Union[ProcessingResult, List[ProcessingResult]], format_type: str = "text") -> str:
+def format_output(result: Union[ProcessingResult, List[ProcessingResult]], format_type: str = "text", show_filenames: bool = False) -> str:
     """Format processing result for output.
     
     Args:
         result: Processing result or list of results to format
         format_type: Output format (text, json, markdown)
+        show_filenames: Whether to show filenames in text output (for multiple files)
     
     Returns:
         Formatted output string
     """
     if isinstance(result, list):
         if format_type == "text":
-            return "\n\n".join(r.llm_response or r.text or "" for r in result)
+            # Format each result with filename prefix (like grep)
+            formatted_results = []
+            for r in result:
+                response = r.llm_response or r.text or ""
+                filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
+                if response:
+                    if show_filenames:
+                        formatted_results.append(f"{filename}: {response}")
+                    else:
+                        formatted_results.append(response)
+            return "\n".join(formatted_results)
         
         if format_type == "json":
             return json.dumps([{
@@ -133,14 +143,16 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
                 "metadata": r.metadata,
                 "page_count": r.page_count,
                 "llm_response": r.llm_response,
-                "error": r.error
+                "error": r.error,
+                "filename": getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
             } for r in result], indent=2)
         
         if format_type == "markdown":
             all_lines = []
-            for i, r in enumerate(result, 1):
+            for r in result:
+                filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
                 lines = [
-                    f"# Document {i} Analysis",
+                    f"# {filename}",
                     f"Text: {r.text or 'N/A'}",
                     f"Page Count: {r.page_count}",
                     f"LLM Response: {r.llm_response or 'N/A'}"
@@ -157,7 +169,13 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
             return "\n".join(all_lines)
     else:
         if format_type == "text":
-            return result.llm_response or result.text or ""
+            response = result.llm_response or result.text or ""
+            filename = getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
+            if response:
+                if show_filenames:
+                    return f"{filename}: {response}"
+                return response
+            return response
         
         if format_type == "json":
             return json.dumps({
@@ -166,12 +184,14 @@ def format_output(result: Union[ProcessingResult, List[ProcessingResult]], forma
                 "metadata": result.metadata,
                 "page_count": result.page_count,
                 "llm_response": result.llm_response,
-                "error": result.error
+                "error": result.error,
+                "filename": getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
             }, indent=2)
         
         if format_type == "markdown":
+            filename = getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
             lines = [
-                "# Document Analysis",
+                f"# {filename}",
                 f"Text: {result.text or 'N/A'}",
                 f"Page Count: {result.page_count}",
                 f"LLM Response: {result.llm_response or 'N/A'}"
@@ -198,8 +218,18 @@ def process_single_file(file_path: Union[str, Path], prompt: str) -> ProcessingR
     Raises:
         Exception: If processing fails
     """
-    processor = PDFProcessor()
-    return processor.process_file(str(file_path), prompt)
+    try:
+        processor = PDFProcessor()
+        result = processor.process_file(file_path, prompt)
+        result.filename = str(Path(file_path).name)  # Store just the filename
+        return result
+    except Exception as e:
+        logger.error(f"Failed to process {file_path}: {str(e)}")
+        return ProcessingResult(
+            success=False,
+            error=str(e),
+            filename=str(Path(file_path).name)
+        )
 
 def process_file(
     files: Union[str, Path, List[Union[str, Path]]],
@@ -224,6 +254,9 @@ def main():
     try:
         parser = create_parser()
         args = parser.parse_args()
+        
+        # Configure logging first
+        configure_logging(args.verbose)
         
         if args.verbose:
             logger.debug(f"Arguments: {args}")
@@ -252,41 +285,26 @@ def main():
         
         # First argument is actually the prompt if no -p/--prompt was specified
         prompt = args.prompt if args.prompt else args.files[0]
-        files = args.files[1:] if not args.prompt else args.files
+        patterns = args.files[1:] if not args.prompt else args.files
         
-        if not args.configure and not files:
+        if not args.configure and not patterns:
             print("Error: No input files specified")
             return
+
+        # Expand glob patterns in file arguments
+        import glob
+        files = []
+        for pattern in patterns:
+            matched_files = glob.glob(pattern)
+            if not matched_files:
+                print(f"Error: File not found: {pattern}")
+                return
+            files.extend(matched_files)
         
         results = process_file(files, prompt)
-        
-        for result in results:
-            if result.success:
-                if args.format == "json":
-                    print(result.model_dump_json(indent=2))
-                elif args.format == "markdown":
-                    print(f"# Processing Results\n")
-                    print(f"## Document\n")
-                    print(f"- File: {result.metadata.get('file_name', 'unknown')}")
-                    print(f"- Pages: {result.page_count}\n")
-                    if result.ocr_text:
-                        print(f"## OCR Results\n")
-                        print(f"- Confidence: {result.ocr_confidence:.2%}\n")
-                        print("### Extracted Text\n")
-                        print(f"```\n{result.ocr_text}\n```\n")
-                    print(f"## LLM Response\n")
-                    print(result.llm_response)
-                else:
-                    if args.verbose:
-                        print(f"File: {result.metadata.get('file_name', 'unknown')}")
-                        print(f"Pages: {result.page_count}")
-                        if result.ocr_text:
-                            print(f"\nOCR Results (Confidence: {result.ocr_confidence:.2%}):")
-                            print(result.ocr_text)
-                        print("\nLLM Response:")
-                    print(result.llm_response)
-            else:
-                print(f"Error: {result.error}")
+        # Show filenames only if multiple files were matched
+        show_filenames = len(files) > 1
+        print(format_output(results, args.format, show_filenames))
                 
     except Exception as e:
         logger.error(f"Error in main: {e}")
@@ -294,5 +312,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    setup_logger(verbose=False)
     main()

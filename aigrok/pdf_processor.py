@@ -4,7 +4,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Dict, Any, Union, List, Tuple
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 from loguru import logger
 import fitz  # PyMuPDF
 from PIL import Image
@@ -16,20 +16,11 @@ import httpx
 from .config import ConfigManager
 from .formats import validate_format
 from .validation import validate_request
+from .types import ProcessingResult
+from .logging import configure_logging
 
-class ProcessingResult(BaseModel):
-    """Result of processing a document."""
-    model_config = ConfigDict(
-        extra='forbid',
-        validate_default=True
-    )
-    
-    success: bool
-    text: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
-    page_count: int = Field(default=0, ge=0)
-    error: Optional[str] = None
-    llm_response: Optional[Any] = None
+class PDFProcessingResult(ProcessingResult):
+    """Extended result for PDF processing."""
     vision_response: Optional[Any] = None
     ocr_text: Optional[str] = None
     ocr_confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
@@ -39,6 +30,7 @@ class PDFProcessor:
     
     def __init__(self, config_manager: Optional[ConfigManager] = None):
         """Initialize PDF processor with optional configuration."""
+        configure_logging()
         logger.debug("Initializing PDF processor")
         self.config_manager = config_manager or ConfigManager()
         
@@ -203,10 +195,10 @@ class PDFProcessor:
             
         return "\n".join(result) if result else ""
     
-    def process_file(self, file_path: Union[str, Path], prompt: str = None, **kwargs) -> ProcessingResult:
+    def process_file(self, file_path: Union[str, Path], prompt: str = None, **kwargs) -> PDFProcessingResult:
         """Process a PDF file."""
         if not self._initialized:
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=False,
                 error="PDF processor not properly initialized. Please run with --configure first."
             )
@@ -334,7 +326,7 @@ class PDFProcessor:
                 )
             logger.debug(f"LLM response: {llm_response[:100]}...")
             
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=True,
                 text=combined_text,
                 metadata=metadata,
@@ -346,7 +338,7 @@ class PDFProcessor:
             
         except Exception as e:
             logger.error(f"Failed to process file: {e}")
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=False,
                 error=str(e)
             )
@@ -437,10 +429,10 @@ Please answer the question using only information from the document above.""",
             return f"Error querying LLM: {e}..."
             
     def process_document(self, file_path: Union[str, Path], prompt: str,
-                      format: str = 'text', **kwargs) -> ProcessingResult:
+                      format: str = 'text', **kwargs) -> PDFProcessingResult:
         """Process a document with the configured model."""
         if not self._initialized:
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=False,
                 error="Processor not initialized. Please configure first."
             )
@@ -490,13 +482,13 @@ Please answer the question using only information from the document above.""",
                     llm_response = response.response
                 except httpx.TimeoutException:
                     logger.error("Request timed out")
-                    return ProcessingResult(
+                    return PDFProcessingResult(
                         success=False,
                         error="Error: Request timed out. Please try again."
                     )
                 except Exception as e:
                     logger.error(f"Error processing document: {e}")
-                    return ProcessingResult(
+                    return PDFProcessingResult(
                         success=False,
                         error=str(e)
                     )
@@ -517,7 +509,7 @@ Please answer the question using only information from the document above.""",
                 )
                 llm_response = response.choices[0].message.content
             
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=True,
                 text=combined_text,
                 metadata={"filename": os.path.basename(file_path)},
@@ -529,7 +521,7 @@ Please answer the question using only information from the document above.""",
             
         except Exception as e:
             logger.error(f"Error processing document: {e}")
-            return ProcessingResult(
+            return PDFProcessingResult(
                 success=False,
                 error=str(e)
             )

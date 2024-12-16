@@ -15,7 +15,7 @@ aigrok [OPTIONS] COMMAND [ARGS]
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--config FILE` | Path to config file | `~/.config/aigrok/config.yaml` |
-| `--verbose` | Enable verbose output | `false` |
+| `--verbose, -v` | Enable debug logging output | `false` (logging disabled by default) |
 | `--quiet` | Suppress all output except errors | `false` |
 | `--log-level LEVEL` | Set logging level (debug/info/warn/error) | `info` |
 | `--version` | Show version information | - |
@@ -54,6 +54,12 @@ aigrok process document.pdf
 
 # Process multiple documents
 aigrok process doc1.pdf doc2.pdf doc3.pdf
+
+# Output Format
+When processing multiple files:
+- Text format: Each result is prefixed with the filename (like grep)
+- JSON format: Results include filenames and full metadata
+- Markdown format: Each section is titled with the filename
 
 # Custom prompt with specific model
 aigrok process --model llama2-vision --prompt "Summarize this document" document.pdf

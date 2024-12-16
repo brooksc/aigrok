@@ -1,64 +1,91 @@
 """
-Test fixtures and configuration.
+Test configuration and fixtures.
 """
 import os
+import shutil
 import pytest
+from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 
-@pytest.fixture(scope="session")
-def test_files_dir():
-    """Get the test files directory."""
-    return Path(__file__).parent / "files"
+def create_test_image(text: str, size=(800, 400), bg_color="white", text_color="black"):
+    """Create a test image with text."""
+    image = Image.new('RGB', size, bg_color)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default()
+    text_bbox = draw.textbbox((0, 0), text, font=font)
+    text_position = ((size[0] - text_bbox[2]) // 2, (size[1] - text_bbox[3]) // 2)
+    draw.text(text_position, text, font=font, fill=text_color)
+    return image
 
-@pytest.fixture(scope="session")
-def ensure_test_files(test_files_dir):
-    """Ensure test files exist."""
-    # Create test files directory if it doesn't exist
-    test_files_dir.mkdir(exist_ok=True)
+@pytest.fixture
+def test_mode():
+    """Get test mode from environment."""
+    return os.getenv("TEST_MODE", "mock")
+
+@pytest.fixture
+def test_dir(tmp_path):
+    """Create and return a temporary test directory."""
+    return tmp_path
+
+@pytest.fixture
+def test_files(test_dir):
+    """Create test files for OCR testing."""
+    # Create test image with text
+    img_path = test_dir / "test.png"
+    img = Image.new('RGB', (300, 100), color='white')
+    d = ImageDraw.Draw(img)
+    d.text((10,10), "Hello World", fill='black')
+    img.save(img_path)
     
-    # Create test PDFs if they don't exist
-    files = {
-        "invoice.pdf": b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Count 1\n/Kids [3 0 R]\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n/Font <<\n/F1 4 0 R\n>>\n>>\n/MediaBox [0 0 612 792]\n/Contents 5 0 R\n>>\nendobj\n4 0 obj\n<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>\nendobj\n5 0 obj\n<<\n/Length 68\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Invoice Date: 2016.01.25) Tj\n(Due Date: 2016.01.31) Tj\nET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000254 00000 n\n0000000321 00000 n\ntrailer\n<<\n/Size 6\n/Root 1 0 R\n>>\nstartxref\n439\n%%EOF",
-        "simple.pdf": b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Count 1\n/Kids [3 0 R]\n>>\nendobj\n3 0 obj\n<<\n/Type /Page\n/Parent 2 0 R\n/Resources <<\n/Font <<\n/F1 4 0 R\n>>\n>>\n/MediaBox [0 0 612 792]\n/Contents 5 0 R\n>>\nendobj\n4 0 obj\n<<\n/Type /Font\n/Subtype /Type1\n/BaseFont /Helvetica\n>>\nendobj\n5 0 obj\n<<\n/Length 44\n>>\nstream\nBT\n/F1 12 Tf\n72 720 Td\n(Simple test PDF) Tj\nET\nendstream\nendobj\nxref\n0 6\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\n0000000115 00000 n\n0000000254 00000 n\n0000000321 00000 n\ntrailer\n<<\n/Size 6\n/Root 1 0 R\n>>\nstartxref\n415\n%%EOF",
-        "empty.pdf": b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n/Pages 2 0 R\n>>\nendobj\n2 0 obj\n<<\n/Type /Pages\n/Count 0\n/Kids []\n>>\nendobj\nxref\n0 3\n0000000000 65535 f\n0000000009 00000 n\n0000000058 00000 n\ntrailer\n<<\n/Size 3\n/Root 1 0 R\n>>\nstartxref\n115\n%%EOF",
-        "not_a_pdf.txt": b"This is not a PDF file",
+    # Create empty image
+    empty_img_path = test_dir / "empty.png"
+    empty_img = Image.new('RGB', (100, 100), color='white')
+    empty_img.save(empty_img_path)
+    
+    # Create invalid file
+    invalid_path = test_dir / "test.txt"
+    invalid_path.write_text("Not an image file")
+    
+    return {
+        "image": img_path,
+        "empty": empty_img_path,
+        "invalid": invalid_path
     }
-    
-    for filename, content in files.items():
-        file_path = test_files_dir / filename
-        if not file_path.exists():
-            file_path.write_bytes(content)
-    
-    return test_files_dir
 
 @pytest.fixture
-def invoice_pdf(ensure_test_files, test_files_dir):
-    """Get path to invoice test PDF."""
-    return test_files_dir / "invoice.pdf"
+def invoice_pdf(test_files):
+    """Get path to invoice test image."""
+    return test_files["image"]
 
 @pytest.fixture
-def simple_pdf(ensure_test_files, test_files_dir):
-    """Get path to simple test PDF."""
-    return test_files_dir / "simple.pdf"
+def simple_pdf(test_files):
+    """Get path to simple test image."""
+    return test_files["empty"]
 
 @pytest.fixture
-def empty_pdf(ensure_test_files, test_files_dir):
-    """Get path to empty test PDF."""
-    return test_files_dir / "empty.pdf"
-
-@pytest.fixture
-def not_a_pdf(ensure_test_files, test_files_dir):
+def not_a_pdf(test_files):
     """Get path to non-PDF test file."""
-    return test_files_dir / "not_a_pdf.txt"
+    return test_files["invalid"]
+
+@pytest.fixture
+def ocr_service(test_mode):
+    """Get OCR service based on test mode."""
+    from .services import MockOCRService, RealOCRService
+    if test_mode == "mock":
+        return MockOCRService()
+    else:
+        return RealOCRService()
 
 @pytest.fixture(autouse=True)
-def cleanup_test_files(request, test_files_dir):
+def cleanup_test_files(request, test_dir):
     """Clean up test files after tests."""
-    yield
-    if request.node.get_closest_marker('no_cleanup'):
-        return
+    def cleanup():
+        if test_dir.exists():
+            for file in test_dir.iterdir():
+                try:
+                    file.unlink()
+                except Exception:
+                    pass
+            test_dir.rmdir()
     
-    # Clean up any additional files created during tests
-    for file in test_files_dir.glob("*"):
-        if file.name not in ["invoice.pdf", "simple.pdf", "empty.pdf", "not_a_pdf.txt"]:
-            file.unlink() 
+    request.addfinalizer(cleanup)
