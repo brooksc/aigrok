@@ -1,98 +1,224 @@
-# Release Prompt
+# Release Process
 
-This prompt guides you through the process of releasing a new version.
+This document outlines the step-by-step process for releasing a new version of aigrok.
+
+## Pre-Release Checklist
 
 1. Version Management
-   - Review current version number
+   ```bash
+   # Review current version
+   cat aigrok/__init__.py
+   
+   # Update version in __init__.py (single source of truth)
+   # Replace X.Y.Z with actual version number, e.g., "0.3.2"
+   # __version__ = "X.Y.Z"
+   ```
    - Determine appropriate version bump (major/minor/patch)
-   - Update version in setup.py and __init__.py
-   - Update any version-dependent documentation
+   - If in doubt, make it a patch or minor. Only increment major if explicitly directed.
 
-2. Pre-release Checks
-   - Run full test suite
-   - Check code coverage
-   - Verify all changes are committed
-   - Review open issues and PRs
-   - Run installation test:
-     ```bash
-     ./scripts/install_test.sh
-     ```
-   - Verify CLI functionality works
+2. Testing
+   ```bash
+   # Run all tests
+   python scripts/run_tests.py
+   
+   # Run cached tests for performance
+   python scripts/run_cached_tests.py
+   
+   # Run installation test
+   ./scripts/install_test.sh
+   ```
+   - Fix any failing tests before proceeding
 
-3. Change Analysis
-   - Review staged changes
-   - Compare against last release
-   - Document breaking changes
-   - Update CHANGELOG.md with changes
+3. Code Review
+   ```bash
+   # Show all uncommitted and staged changes
+   git status
+   git diff HEAD
+   git diff --cached
+   
+   # Review specific files
+   git diff HEAD -- aigrok/ tests/ docs/
+   
+   # Get list of changes since last tag
+   git log --oneline $(git describe --tags --abbrev=0)..HEAD
+   
+   # Get detailed changes for specific components
+   git log -p $(git describe --tags --abbrev=0)..HEAD -- aigrok/
+   git log -p $(git describe --tags --abbrev=0)..HEAD -- tests/
+   ```
+   Review for:
+   - Code changes: bug fixes, features, breaking changes
+   - Documentation updates
+   - Test coverage
+   - Version consistency
 
-4. Documentation Review
-   - Verify README is up to date
-   - Check API documentation accuracy
-   - Review example code
+3a. Update CHANGELOG.md
+   ```bash
+   # Open CHANGELOG.md and add new version section at the top
+   # Format (replace X.Y.Z with actual version number):
+   
+   ## [X.Y.Z] (YYYY-MM-DD)
+   
+   ### Major Features
+   # Add if there are significant new features or breaking changes
+   * Feature description
+   * Breaking change description with migration notes
+   
+   ### Added
+   # New features and capabilities
+   * New feature X added with capabilities A, B, C
+   * New API endpoint for feature Y
+   * New CLI command for operation Z
+   
+   ### Changed
+   # Modified functionality and improvements
+   * Enhanced component X with better performance
+   * Updated dependency Y to version Z
+   * Improved error handling in module A
+   
+   ### Fixed
+   # Bug fixes and corrections
+   * Fixed issue #123: Description of the fix
+   * Resolved performance bottleneck in X
+   * Corrected error handling in Y
+   
+   ### Testing
+   # Test improvements and coverage
+   * Added tests for new feature X
+   * Improved test coverage for module Y
+   * Current coverage metrics:
+     - Core Components: XX%
+     - API Layer: XX%
+     - CLI Interface: XX%
+   
+   ### Documentation
+   # Documentation updates
+   * Updated API documentation for new features
+   * Added migration guide for breaking changes
+   * Improved installation instructions
+   ```
+   
+   Guidelines for CHANGELOG updates:
+   - Keep entries clear and concise
+   - Include issue/PR numbers where relevant
+   - Group related changes together
+   - Highlight breaking changes prominently
+   - Include migration guides if needed
+   - Update coverage metrics if significant changes
+   - Add any new dependencies or requirements
+   - Document API changes thoroughly
 
+4. Documentation Updates
+   ```bash
+   # Review and update README.md if needed
+   ```
 
-5. Git Operations
-   - Review changes with `git status`
-   - Stage changes:
-     * Version updates
-     * Documentation changes
-     * Test updates
-     * New features and fixes
-   - Commit changes with descriptive message:
-     * Include version number
-     * List major changes
-     * Reference relevant issues
-   - Create version tag
-   - Push to remote:
-     * Push commits
-     * Push tags
-     * Verify push success
+## Release Process
 
-6. GitHub Release
-   - Create GitHub release using `gh release create`:
-     * Use version tag (e.g., v0.3.0)
-     * Add descriptive title
-     * Include detailed release notes:
-       - Major changes
-       - Documentation updates
-       - Code quality improvements
-       - Breaking changes (if any)
-       - Migration guides (if needed)
-   - Verify release page
-   - Check release assets
+5. Package Preparation
+   ```bash
+   # Clean old builds
+   rm -rf dist/ build/ *.egg-info/
+   
+   # Build package
+   python -m build
+   
+   # Verify package structure
+   tar tzf dist/*.tar.gz
+   unzip -l dist/*.whl
+   ```
 
-7. Package Release
-   - Deploy to TestPyPI first:
-     ```bash
-     ./scripts/deploy_testpypi.sh
-     ```
-   - Test installation from TestPyPI
-   - Deploy to production PyPI:
-     ```bash
-     ./scripts/deploy_pypi.sh
-     ```
-   - Verify package upload
+6. Git Operations
+   ```bash
+   # Stage changes
+   git status
+   # generate git add and git rm based on what is not staged
+   git add .
+   
+   # Commit with version (replace X.Y.Z with actual version number)
+   git commit -m "Release version X.Y.Z
 
-8. Post-release Tasks
-   - Create fresh virtual environment
-   - Test package installation:
-     ```bash
-     python -m pip install aigrok
-     ```
-   - Verify CLI functionality
-   - Update release documentation
-   - Announce release if needed
-   - Plan next version
+   - Added: description of new features
+   - Changed: description of changes
+   - Fixed: description of bug fixes"
+   
+   # Create and push tag (replace X.Y.Z with actual version number)
+   git tag -a vX.Y.Z -m "Version X.Y.Z"
+   git push origin main
+   git push origin vX.Y.Z
+   ```
 
-9. Release Verification
-   - Check GitHub release page
-   - Verify package on PyPI
-   - Test fresh installation
-   - Review documentation links
+7. Test Release
+   ```bash
+   # Deploy to TestPyPI
+   ./scripts/deploy_testpypi.sh
+   
+   # Test installation from TestPyPI (replace X.Y.Z with actual version)
+   python -m pip install --index-url https://test.pypi.org/simple/ aigrok==X.Y.Z
+   
+   # Verify functionality
+   python -c "import aigrok; print(aigrok.__version__)"
+   ```
+
+8. Production Release
+   ```bash
+   # Deploy to PyPI
+   ./scripts/deploy_pypi.sh
+   
+   # Verify installation (replace X.Y.Z with actual version)
+   python -m pip install --upgrade aigrok==X.Y.Z
+   python -c "import aigrok; print(aigrok.__version__)"
+   ```
+
+9. GitHub Release
+   ```bash
+   # Create GitHub release (replace X.Y.Z with actual version number)
+   gh release create vX.Y.Z \
+     --title "aigrok vX.Y.Z" \
+     --notes "## What's New
+   
+   ### Added
+   - Description of new features
+   
+   ### Changed
+   - Description of changes
+   
+   ### Fixed
+   - Description of bug fixes
+   
+   For full details, see [CHANGELOG.md](CHANGELOG.md)"
+   
+   # Verify release page
+   gh release view vX.Y.Z
+   ```
+
+## Post-Release Tasks
+
+10. Verification
+    ```bash
+    # Verify PyPI package (replace X.Y.Z with actual version)
+    python -m pip install --no-cache-dir aigrok==X.Y.Z
+    
+    # Run basic smoke test
+    python -c "import aigrok; print(aigrok.__version__)"
+    ```
+
+11. Cleanup and Documentation
+    - Close related GitHub issues and milestones
+    - Update external documentation if needed
+    - Announce release if appropriate
 
 ## Notes
-- All scripts are located in the `scripts/` directory
-- Scripts require appropriate permissions (`chmod +x scripts/*.sh`)
-- TestPyPI deployment requires TestPyPI credentials
-- PyPI deployment requires PyPI credentials
-- Installation test requires a clean virtual environment
+- All scripts are in `scripts/` directory
+- Ensure scripts are executable: `chmod +x scripts/*.sh`
+- TestPyPI/PyPI deployments require appropriate credentials
+- Installation tests require clean virtual environments
+- Version numbers follow [Semantic Versioning](https://semver.org/)
+
+## Troubleshooting
+
+If deployment fails:
+1. Check credentials are properly configured
+2. Verify package builds correctly
+3. Ensure version number is unique
+4. Check PyPI/TestPyPI service status

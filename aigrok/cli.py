@@ -13,105 +13,110 @@ from loguru import logger
 from .pdf_processor import PDFProcessor, ProcessingResult
 from .formats import validate_format, get_supported_formats
 from .config import ConfigManager, AigrokConfig
+from . import __version__
 import csv
 import io
 import glob
 from .logging import configure_logging
+from pprint import pformat
 
 def create_parser() -> argparse.ArgumentParser:
-    """Create and configure the argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Process documents with LLMs",
-        usage="%(prog)s [options] PROMPT file ...",
+    """Create argument parser."""
+    class ExitOnEmptyParser(argparse.ArgumentParser):
+        def parse_args(self, args=None, namespace=None):
+            if args is None:
+                args = sys.argv[1:]
+            if not args:
+                self.print_help()
+                sys.exit(1)
+            return super().parse_args(args, namespace)
+
+    parser = ExitOnEmptyParser(
+        description="Process PDF files with AI assistance",
+        usage="aigrok [options] PROMPT file ...",
         prog="aigrok"
     )
-    
+
     # Version
+    parser.add_argument('--version', action='version', version=f'%(prog)s {__version__}')
+
+    # Required arguments - but only if not configuring
     parser.add_argument(
-        "--version",
-        action="version",
-        version="%(prog)s 0.3.1"
+        "prompt",
+        nargs="?",  # Make prompt optional
+        help="Processing prompt"
     )
-    
-    # Required arguments
+
     parser.add_argument(
         "files",
-        nargs="+",
-        metavar="PROMPT/file",
-        help="prompt followed by files to process"
+        nargs="*",  # Zero or more files
+        help="Files to process"
     )
-    
+
     # Optional arguments
     parser.add_argument(
-        "--format",
-        "-f",
+        "--format", "-f",
         choices=["text", "json", "markdown"],
         default="text",
         help="Output format (default: text)"
     )
-    
+
     parser.add_argument(
         "--configure",
         action="store_true",
         help="Configure the application"
     )
-    
+
+    # Add other arguments
     parser.add_argument(
         "--model",
         type=str,
         help="Model to use for analysis"
     )
-    
+
     parser.add_argument(
-        "--output",
-        "-o",
+        "--output", "-o",
         type=str,
         help="Path to save the output (defaults to stdout)"
     )
-    
+
     # Format options
     parser.add_argument(
         "--type",
         help=f"Input file type. Supported types: {', '.join(t.strip('.') for t in get_supported_formats())}"
     )
-    
+
     # Additional options
     parser.add_argument(
         "--metadata-only",
         action="store_true",
         help="Only extract and display document metadata"
     )
-    
+
     parser.add_argument(
-        "--verbose",
-        "-v",
+        "--verbose", "-v",
         action="store_true",
         help="Enable verbose logging"
     )
-    
+
     parser.add_argument(
         "--easyocr",
         action="store_true",
         help="Enable OCR processing of images in PDFs. This is useful for PDFs with scanned text or embedded images containing text. Example: --easyocr"
     )
-    
+
     parser.add_argument(
         "--ocr-languages",
-        type=str,
         default="en",
-        help="Comma-separated list of language codes for OCR. Available languages depend on EasyOCR's language packs. Example: --ocr-languages 'en,fr,de' for English, French, and German"
+        help="Languages to use for OCR (comma-separated). Example: en,fr,de"
     )
-    
+
     parser.add_argument(
         "--ocr-fallback",
         action="store_true",
-        help="Continue processing even if OCR fails. This ensures the document is processed using standard text extraction even if OCR encounters errors. Example: --ocr-fallback"
+        help="Continue processing if OCR fails (default: False)"
     )
-    
-    # TODO(cli): Add --version command
-    # - Add version command to CLI parser
-    # - Return version from pyproject.toml
-    
+
     return parser
 
 def format_output(result: Union[ProcessingResult, List[ProcessingResult]], format_type: str = "text", show_filenames: bool = False) -> str:
@@ -262,95 +267,119 @@ def process_file(
     
     return [process_single_file(f, prompt) for f in files]
 
-def main():
-    """Main entry point for the CLI."""
-    try:
-        parser = create_parser()
-        
-        # Show help if no arguments provided
-        if len(sys.argv) == 1:
-            parser.print_help()
-            return 0
-            
-        args = parser.parse_args()
-        
-        # Configure logging first
-        configure_logging(args.verbose)
-        
-        # Only log when verbose mode is enabled
-        if args.verbose:
-            logger.debug(f"Arguments: {args}")
-            logger.debug(f"Verbose mode: {args.verbose}")
+def process_files(args):
+    """Process files based on the provided arguments."""
+    config_manager = ConfigManager()
 
-        config_manager = ConfigManager()
+    # Initialize processor with verbose setting
+    processor = PDFProcessor(config_manager=config_manager, verbose=args.verbose)
+
+    # Expand glob patterns in file arguments
+    files = []
+    for pattern in args.files or []:
+        matched_files = glob.glob(pattern)
+        if not matched_files:
+            print(f"Error: File not found: {pattern}")
+            sys.exit(1)
+        files.extend(matched_files)
+
+    # Process files and format output
+    results = []
+    for file in files:
+        logger.info(f"Processing file: {file}")
         
-        # Handle configuration
-        if args.configure:
-            config_manager.configure()
-            return
-            
-        # Update configuration if OCR options are provided
-        if args.easyocr:
-            if not config_manager.config:
-                print("Error: PDF processor not properly initialized. Please run with --configure first.")
-                return
+        if args.verbose:
+            logger.debug("Processing Configuration:\n%s", pformat({
+                "text_model": config_manager.config.text_model.model_dump(),
+                "vision_model": config_manager.config.vision_model.model_dump(),
+                "audio_model": config_manager.config.audio_model.model_dump() if config_manager.config.audio_model else None,
+                "ocr_enabled": config_manager.config.ocr_enabled,
+                "ocr_languages": config_manager.config.ocr_languages,
+                "format": args.format
+            }))
+        
+        result = processor.process_file(file, args.prompt)
+        
+        if args.verbose:
+            logger.debug("File Processing Response:\n%s", pformat({
+                "success": result.success,
+                "text": result.text[:200] + "..." if result.text else None,  # Truncate long text
+                "metadata": result.metadata,
+                "error": result.error
+            }))
+        
+        results.append(result)
+
+    # Format output
+    output = format_output(
+        results if len(files) > 1 else results[0] if results else None,
+        format_type=args.format,
+        show_filenames=len(files) > 1
+    )
+
+    # Write output
+    if args.output:
+        Path(args.output).write_text(output)
+    else:
+        print(output)
+
+def main():
+    """Main entry point."""
+    parser = create_parser()
+
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        # Re-raise SystemExit for --help and --version
+        raise
+
+    # Configure logging based on verbosity
+    configure_logging(args.verbose)
+
+    if args.verbose:
+        logger.debug(f"Arguments: {args}")
+        logger.debug(f"Verbose mode: {args.verbose}")
+
+    # Handle configuration
+    if args.configure:
+        config_manager = ConfigManager()
+        config_manager.configure()
+        sys.exit(0)
+
+    # Check for required arguments
+    if not args.prompt and not args.files and not args.configure:
+        parser.print_help()
+        print("\nError: Must provide at least one file or a prompt")
+        sys.exit(1)
+
+    # Update configuration if OCR options are provided
+    if args.easyocr:
+        try:
+            config_manager = ConfigManager()
             config_manager.config.ocr_enabled = True
-            if args.ocr_languages:
-                config_manager.config.ocr_languages = args.ocr_languages.split(',')
+            config_manager.config.ocr_languages = args.ocr_languages.split(',')
             config_manager.config.ocr_fallback = args.ocr_fallback
             config_manager.save_config()
             if args.verbose:
                 logger.debug("Updated OCR configuration")
-        
-        # First argument is the prompt, rest are files
-        if len(args.files) < 2:  # Need at least prompt + one file
-            print("Error: Must provide both a prompt and at least one file")
-            print("Usage: aigrok PROMPT file [file ...]")
-            return
-            
-        prompt = args.files[0]
-        patterns = args.files[1:]
+        except Exception as e:
+            logger.error(f"Failed to update OCR configuration: {e}")
+            sys.exit(1)
 
-        if not args.configure and not patterns:
-            print("Error: No input files specified")
-            return
-
-        if args.verbose:
-            logger.debug(f"Processing files: {patterns}")
-
-        # Expand glob patterns in file arguments
-        files = []
-        for pattern in patterns:
-            matched_files = glob.glob(pattern)
-            if not matched_files:
-                print(f"Error: File not found: {pattern}")
-                return
-            files.extend(matched_files)
-
-        # Initialize processor with verbose setting
-        processor = PDFProcessor(config_manager=config_manager, verbose=args.verbose)
-        
-        # Process files and format output
-        results = []
-        for file in files:
-            result = processor.process_file(file, prompt)
-            results.append(result)
-        
-        # Format output
-        output = format_output(results[0] if len(results) == 1 else results, args.format, len(files) > 1)
-        
-        if args.output:
-            with open(args.output, 'w') as f:
-                f.write(output)
-            if args.verbose:
-                logger.debug(f"Output written to {args.output}")
+    # Process files
+    try:
+        if args.prompt and not args.files:
+            print("Error: Must provide at least one file or a prompt")
+            sys.exit(1)
+        elif not args.prompt:
+            print("Error: Must provide at least one file or a prompt")
+            sys.exit(1)
         else:
-            print(output)
-            
+            logger.info(f"Processing files with prompt: {args.prompt}")
+            process_files(args)
+            sys.exit(0)
     except Exception as e:
-        print(f"Error: {str(e)}", file=sys.stderr)
-        if args.verbose:
-            logger.exception("An error occurred")
+        logger.error(f"Error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

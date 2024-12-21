@@ -5,11 +5,14 @@ AIGrok is an advanced document analysis tool that uses AI to process, analyze, a
 ## Features
 
 - 📄 Process multiple document formats (PDF, TXT, etc.)
-- 🤖 Advanced AI-powered analysis
-- 🔍 Smart content extraction
+- 🤖 Advanced AI-powered analysis with OpenAI and Ollama support
+- 🔍 Smart content extraction with OCR capabilities
 - 💾 Result caching for performance
-- 🛠️ Extensible plugin system
+- 🛠️ Extensible provider system
 - 📊 Comprehensive reporting
+- 📝 Structured output support
+- 🔄 Automatic model discovery
+- 📈 Code coverage tracking
 
 ## Quick Start
 
@@ -44,8 +47,10 @@ For detailed documentation, please see the [docs](docs/) directory:
 
 ## Requirements
 
-- Python 3.9+
-- Ollama with vision models installed
+- Python 3.9+ (including 3.12)
+- One of:
+  - Ollama with vision models installed
+  - OpenAI API key for GPT-4 Vision
 - 4GB RAM minimum
 - Internet connection for API access
 
@@ -102,4 +107,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Built with [Ollama](https://ollama.ai/)
 - Inspired by the need for better document analysis tools
 - 90% of this project was written by AI using Cursor or Windsurf with Anthropic's Claude.
-

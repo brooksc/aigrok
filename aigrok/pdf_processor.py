@@ -9,15 +9,22 @@ from loguru import logger
 import fitz  # PyMuPDF
 from PIL import Image
 import ollama
+from ollama import chat
 import litellm
 import easyocr
 import numpy as np
 import httpx
+import json
 from .config import ConfigManager
 from .formats import validate_format
 from .validation import validate_request
 from .types import ProcessingResult
 from .logging import configure_logging
+from pprint import pprint, pformat
+
+# Constants
+CONNECT_TIMEOUT_SECONDS = 10.0  # Connection timeout
+TOTAL_TIMEOUT_SECONDS = 90.0    # Total operation timeout
 
 class PDFProcessingResult(ProcessingResult):
     """Extended result for PDF processing."""
@@ -65,7 +72,7 @@ class PDFProcessor:
                 if text_model.provider == 'ollama':
                     self.llm = ollama.Client(
                         host=text_model.endpoint,
-                        timeout=httpx.Timeout(30.0, connect=10.0)  # 30s total timeout, 10s connect timeout
+                        timeout=httpx.Timeout(TOTAL_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)  # 30s total timeout, 10s connect timeout
                     )
                 else:
                     litellm.set_verbose = True
@@ -84,10 +91,13 @@ class PDFProcessor:
                     if not hasattr(self, 'llm'):
                         self.llm = ollama.Client(
                             host=vision_model.endpoint,
-                            timeout=httpx.Timeout(60.0, connect=10.0)  # 60s total timeout, 10s connect timeout
+                            timeout=httpx.Timeout(TOTAL_TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS)  # 300s total timeout, 10s connect timeout
                         )
-                elif vision_model.provider not in ['ollama']:
-                    # TODO(#128): Add support for other vision providers
+                elif vision_model.provider == 'openai':
+                    if not hasattr(self, 'llm'):
+                        self.llm = litellm
+                else:
+                    # Other providers not yet supported
                     logger.warning(f"Vision provider {vision_model.provider} not yet supported")
                     
             self._initialized = True
@@ -102,6 +112,14 @@ class PDFProcessor:
             self._initialized = False
             raise RuntimeError(f"Failed to initialize models: {e}")
         
+        # Log configuration in verbose mode
+        logger.debug("PDF Processor Configuration:\n%s", pformat({
+            "ocr_enabled": self.config_manager.config.ocr_enabled,
+            "ocr_languages": self.config_manager.config.ocr_languages,
+            "ocr_fallback": self.config_manager.config.ocr_fallback,
+            "config": self.config_manager.config.model_dump() if self.config_manager else None
+        }))
+
     def _extract_images(self, doc: fitz.Document) -> List[Tuple[Image.Image, int]]:
         """Extract images from PDF document.
         
@@ -131,6 +149,21 @@ class PDFProcessor:
         
         return images
     
+    def _process_ocr_results(self, results: List[Tuple[List[List[int]], str, float]], page_num: int) -> Tuple[str, float]:
+        """Process OCR results for a page."""
+        if not results:
+            return "", 0.0
+            
+        texts = []
+        confidences = []
+        for _, text, conf in results:
+            texts.append(text)
+            confidences.append(conf)
+            
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+        combined_text = f"[Page {page_num + 1}] {' '.join(texts)}"
+        return combined_text, avg_confidence
+
     def _process_image_ocr(self, image: Image.Image) -> Tuple[str, float]:
         """Process image with EasyOCR.
         
@@ -171,32 +204,212 @@ class PDFProcessor:
             return "", 0.0
     
     def _combine_text(self, pdf_text: str, ocr_text: str) -> str:
-        """Combine PDF text with OCR text.
+        """Combine extracted PDF text with OCR text."""
+        combined = []
+        
+        if pdf_text:
+            combined.append("Text extracted from PDF:")
+            combined.append(pdf_text.strip())
+            
+        if ocr_text:
+            if combined:
+                combined.append("\nText extracted via OCR:")
+            else:
+                combined.append("Text extracted via OCR:")
+            combined.append(ocr_text.strip())
+            
+        return "\n".join(combined)
+
+    def _query_llm(self, prompt: str, context: str, provider: str, images: Optional[List[Tuple[Image.Image, str]]] = None):
+        """Query the LLM with prompt and context.
         
         Args:
-            pdf_text: Text extracted directly from PDF
-            ocr_text: Text extracted via OCR
-            
-        Returns:
-            Combined text with clear separation between sources
-            
-        Note:
-            OCR text is clearly marked in the output to distinguish it from
-            directly extracted PDF text.
+            prompt: User prompt
+            context: Text context
+            provider: Provider to use
+            images: Optional list of tuples containing (image, description)
         """
-        result = []
-        if pdf_text and pdf_text.strip():
-            result.append("Text extracted from PDF:")
-            result.append(pdf_text.strip())
+        try:
+            logger.debug(f"Processing {len(images) if images else 0} images")
             
-        if ocr_text and ocr_text.strip():
-            if result:
-                result.append("\n")
-            result.append("Text extracted via OCR:")
-            result.append(ocr_text.strip())
-            
-        return "\n".join(result) if result else ""
-    
+            if not images:
+                # Text-only query
+                response = None
+                if provider == 'ollama':
+                    try:
+                        response = self.llm.chat(
+                            model=self.text_model,
+                            messages=[{
+                                'role': 'user',
+                                'content': f"""Based on the following document:
+
+Context:
+{context}
+
+Question: {prompt}
+
+Please answer the question using only information from the document above."""
+                            }]
+                        )
+                        logger.debug("LLM Request:\n%s", pformat({
+                            "model": self.text_model,
+                            "provider": provider,
+                            "prompt": prompt,
+                            "text_length": len(context) if context else 0
+                        }))
+                        logger.debug("LLM Response:\n%s", pformat({
+                            "response": response.message.content
+                        }))
+                        return response.message.content
+                    except httpx.TimeoutException:
+                        logger.error("Request timed out")
+                        return "Error: Request timed out. Please try again."
+                    except Exception as e:
+                        logger.error(f"Error querying text LLM: {e}")
+                        return f"Error querying LLM: {e}"
+                else:
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant processing document content."
+                        },
+                        {
+                            "role": "user",
+                            "content": f"Document content:\n\n{context}\n\nPrompt: {prompt}"
+                        }
+                    ]
+                    response = litellm.completion(
+                        model=f"{self.text_provider}/{self.text_model}",
+                        messages=messages
+                    )
+                    logger.debug("LLM Request:\n%s", pformat({
+                        "model": self.text_model,
+                        "provider": provider,
+                        "prompt": prompt,
+                        "text_length": len(context) if context else 0
+                    }))
+                    logger.debug("LLM Response:\n%s", pformat({
+                        "response": response.choices[0].message.content
+                    }))
+                    logger.debug(f"LLM Response type: {type(response)}")
+                    logger.debug(f"LLM Response content: {response}")
+                    
+                    # Handle litellm response format
+                    try:
+                        if isinstance(response, dict):
+                            if 'choices' in response and response['choices']:
+                                return response['choices'][0]['message']['content']
+                        return response.choices[0].message.content
+                    except (AttributeError, IndexError, KeyError) as e:
+                        logger.error(f"Error accessing LLM response: {e}")
+                        logger.error(f"Response structure: {response}")
+                        return f"Error: Unable to parse LLM response"
+            else:
+                # Vision query
+                if not images:
+                    return "No images found to analyze"
+                
+                # Prepare images for vision model
+                base64_images = []
+                for img, _ in images:
+                    # Convert to base64
+                    buffered = BytesIO()
+                    img.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    base64_images.append(img_str)
+                
+                # Query vision model
+                if provider == "ollama":
+                    # Prepare prompt with images
+                    prompt_text = f"""Please analyze these document images and answer the following question:
+
+Question: {prompt}
+
+Please be concise and only include information that directly answers the question."""
+                    
+                    # Add images to prompt
+                    for img_str in base64_images:
+                        prompt_text += f"\n<image>data:image/png;base64,{img_str}</image>"
+                    
+                    try:
+                        response = self.llm.chat(
+                            model=self.vision_model,
+                            messages=[{
+                                "role": "user",
+                                "content": prompt_text
+                            }]
+                        )
+                        
+                        logger.debug("LLM Request:\n%s", pformat({
+                            "model": self.vision_model,
+                            "provider": provider,
+                            "prompt": prompt,
+                            "text_length": len(prompt_text) if prompt_text else 0
+                        }))
+                        logger.debug("LLM Response:\n%s", pformat({
+                            "response": response.message.content
+                        }))
+                        
+                        logger.debug(f"Raw LLM Response: {response}")
+                        
+                        if response and hasattr(response, 'message'):
+                            return response.message.content
+                        else:
+                            raise ValueError("Unexpected response format from LLM")
+                            
+                    except Exception as e:
+                        logger.error(f"Error querying Ollama vision: {e}")
+                        return f"Error querying vision LLM: {e}"
+                elif provider == "openai":
+                    # OpenAI vision handling (existing code)
+                    messages = [
+                        {"role": "system", "content": "You are a helpful assistant analyzing documents."},
+                        {"role": "user", "content": [
+                            {"type": "text", "text": f"Please analyze these document images and answer the following question: {prompt}"}
+                        ]}
+                    ]
+                    
+                    # Add images to messages
+                    for img_str in base64_images:
+                        messages[1]["content"].append({
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/png;base64,{img_str}"
+                            }
+                        })
+                    
+                    try:
+                        response = litellm.completion(
+                            model=f"{self.vision_provider}/{self.vision_model}",
+                            messages=messages,
+                            max_tokens=1000
+                        )
+                        
+                        logger.debug("LLM Request:\n%s", pformat({
+                            "model": f"{self.vision_provider}/{self.vision_model}",
+                            "provider": provider,
+                            "prompt": prompt,
+                            "messages": messages
+                        }))
+                        logger.debug("LLM Response:\n%s", pformat({
+                            "response": response.choices[0].message.content
+                        }))
+                        
+                        if isinstance(response, dict):
+                            if 'choices' in response and response['choices']:
+                                return response['choices'][0]['message']['content']
+                        return response.choices[0].message.content
+                    except Exception as e:
+                        logger.error(f"Error querying OpenAI vision: {e}")
+                        return f"Error querying vision LLM: {e}"
+                else:
+                    raise ValueError(f"Unsupported vision provider: {provider}")
+                    
+        except Exception as e:
+            error_msg = f"Error querying LLM: {str(e)}"
+            logger.error(error_msg)
+            return error_msg
+
     def process_file(self, file_path: Union[str, Path], prompt: str = None, **kwargs) -> PDFProcessingResult:
         """Process a PDF file."""
         if not self._initialized:
@@ -243,113 +456,65 @@ class PDFProcessor:
             logger.debug(f"Extracted metadata: {metadata}")
             
             # Extract text and images
-            text_content = []
+            extracted_text = []
             images = []
-            total_chars = 0
-            total_images = 0
-            
-            for page_num, page in enumerate(doc, 1):
+            for page_num, page in enumerate(doc):
                 # Extract text
                 page_text = page.get_text()
                 if page_text.strip():
-                    text_content.append(page_text)
-                total_chars += len(page_text)
-                logger.debug(f"Page {page_num} extracted {len(page_text)} chars")
+                    extracted_text.append(page_text)
                 
                 # Extract images
                 page_images = self._extract_images(doc)
                 if page_images:
                     images.extend(page_images)
-                    total_images += len(page_images)
-                logger.debug(f"Page {page_num} extracted {len(page_images)} images")
             
             # Determine content type
-            content_type = 'mixed'
-            if total_chars == 0 and total_images > 0:
+            content_type = 'text_only'
+            if len(extracted_text) == 0 and len(images) > 0:
                 content_type = 'images_only'
-            elif total_chars > 0 and total_images == 0:
-                content_type = 'text_only'
-            logger.debug(f"PDF content type: {content_type}")
+                logger.debug(f"PDF content type: {content_type}")
+            elif len(images) > 0:
+                content_type = 'mixed'
+                logger.debug(f"PDF content type: {content_type}")
             
-            # Combine extracted text
-            combined_text = "\n\n".join(text_content)
-            logger.debug(f"Extracted text: {combined_text[:100]}...")
-            logger.debug(f"Extracted {total_images} total images")
+            logger.debug(f"Extracted text: {extracted_text}")
+            logger.debug(f"Extracted {len(images)} total images")
             
-            # Process with OCR if enabled
-            ocr_text = ""
+            # Process with OCR if needed
+            ocr_text = []
             ocr_confidence = 0.0
-            if self.reader and images:
+            if content_type in ['images_only', 'mixed'] and self.reader:
                 logger.debug("Processing images with OCR")
-                ocr_results = []
-                for img, page_num in images:
-                    text, conf = self._process_image_ocr(img)
-                    if text:
-                        ocr_results.append((text, conf, page_num))
+                total_confidence = 0
+                total_regions = 0
                 
-                if ocr_results:
-                    # Sort by page number
-                    ocr_results.sort(key=lambda x: x[2])
-                    
-                    # Combine results
-                    ocr_texts = []
-                    total_conf = 0.0
-                    for text, conf, page in ocr_results:
-                        ocr_texts.append(f"[Page {page}]\n{text}")
-                        total_conf += conf
-                    
-                    ocr_text = "\n\n".join(ocr_texts)
-                    ocr_confidence = total_conf / len(ocr_results)
+                for img, _ in images:
+                    text, confidence = self._process_image_ocr(img)
+                    if text:
+                        ocr_text.append(text)
+                        total_confidence += confidence
+                        total_regions += 1
+                
+                if total_regions > 0:
+                    ocr_confidence = total_confidence / total_regions
                     logger.debug(f"OCR confidence: {ocr_confidence:.2%}")
             
-            # If we have OCR results with reasonable confidence, try text model first
-            if ocr_text and ocr_confidence and ocr_confidence > 0.5:
-                logger.debug(f"Using text model with OCR results (confidence: {ocr_confidence:.2%})")
-                try:
-                    combined_text = self._combine_text("", ocr_text)
-                    llm_response = self._query_llm(
-                        prompt=prompt,
-                        context=combined_text,
-                        provider=self.text_provider
-                    )
-                    if llm_response and not llm_response.startswith("Error:"):
-                        return ProcessingResult(
-                            success=True,
-                            text=combined_text,
-                            page_count=len(doc),
-                            llm_response=llm_response,
-                            metadata=metadata
-                        )
-                    else:
-                        logger.debug("Text model failed to provide valid response, falling back to vision model")
-                except Exception as e:
-                    logger.debug(f"Text model processing failed: {e}, falling back to vision model")
-                    
-            # Fall back to vision model if text model fails or confidence is too low
-            if content_type == 'images_only' and self.vision_provider:
-                logger.debug("Sending to vision LLM for analysis")
-                llm_response = self._query_llm(
-                    prompt=prompt,
-                    context=combined_text,
-                    provider=self.vision_provider,
-                    images=[(img, f"Page {page}") for img, page in images]
-                )
+            # Use vision model for image-only PDFs, otherwise use text model
+            if content_type == 'images_only' and self.vision_model:
+                logger.debug("Using vision model for image analysis")
+                result = self._query_llm(prompt, "", self.vision_provider, images)
             else:
-                logger.debug("Sending to text LLM for analysis")
-                llm_response = self._query_llm(
-                    prompt=prompt,
-                    context=self._combine_text(combined_text, ocr_text),
-                    provider=self.text_provider
-                )
-            logger.debug(f"LLM response: {llm_response[:100]}...")
+                logger.debug(f"Using text model with OCR results (confidence: {ocr_confidence:.2%})")
+                result = self._query_llm(prompt, self._combine_text("\n".join(extracted_text), "\n".join(ocr_text) if ocr_text else None), self.text_provider)
             
             if prompt:
                 try:
                     return ProcessingResult(
                         success=True,
-                        text=combined_text,
+                        text=self._combine_text("\n".join(extracted_text), "\n".join(ocr_text) if ocr_text else None),
                         page_count=len(doc),
-                        llm_response=llm_response,
+                        llm_response=result,
                         metadata=metadata
                     )
                 except Exception as e:
@@ -366,7 +531,7 @@ class PDFProcessor:
             # Return text only if no prompt
             return ProcessingResult(
                 success=True,
-                text=combined_text,
+                text=self._combine_text("\n".join(extracted_text), "\n".join(ocr_text) if ocr_text else None),
                 page_count=len(doc),
                 metadata=metadata
             )
@@ -378,185 +543,86 @@ class PDFProcessor:
                 error=str(e)
             )
 
-    def _query_llm(self, prompt: str, context: str, provider: str, images: Optional[List[Tuple[Image.Image, str]]] = None):
-        """Query the LLM with prompt and context.
-        
-        Args:
-            prompt: User prompt
-            context: Text context
-            provider: Provider to use
-            images: Optional list of tuples containing (image, description)
-        """
+    def process_document(self, file_path: Union[str, Path], prompt: Optional[str] = None) -> PDFProcessingResult:
+        """Process a PDF document."""
         try:
-            logger.debug(f"Processing {len(images) if images else 0} images")
-            
-            if not images:
-                # Text-only query
-                response = None
-                if provider == 'ollama':
-                    try:
-                        response = self.llm.generate(
-                            model=self.text_model,
-                            prompt=f"""Based on the following document:
-
-Context:
-{context}
-
-Question: {prompt}
-
-Please answer the question using only information from the document above.""",
-                            stream=False
-                        )
-                        return response['response'] if isinstance(response, dict) else response.response
-                    except httpx.TimeoutException:
-                        logger.error("Request timed out")
-                        return "Error: Request timed out. Please try again."
-                    except Exception as e:
-                        logger.error(f"Error querying text LLM: {e}")
-                        return f"Error querying LLM: {e}"
-                else:
-                    response = self.llm.completion(
-                        model=f"{self.text_provider}/{self.text_model}",
-                        messages=[
-                            {"role": "system", "content": "You are a helpful assistant analyzing documents."},
-                            {"role": "user", "content": f"Document content:\n\n{context}\n\nPrompt: {prompt}"}
-                        ]
-                    )
-                    return response.choices[0].message.content
-                    
-            else:
-                # Vision query
-                if provider == 'ollama':
-                    try:
-                        # Convert images to base64
-                        image_data = []
-                        for img, desc in images:
-                            # Convert PIL Image to bytes
-                            img_byte_arr = BytesIO()
-                            img.save(img_byte_arr, format='PNG')  # Try PNG format
-                            img_byte_arr = img_byte_arr.getvalue()
-                            
-                            # Convert to base64
-                            img_b64 = base64.b64encode(img_byte_arr).decode('utf-8')
-                            image_data.append(img_b64)
-                        
-                        # Since OCR already worked, let's use the text for context
-                        context = context if context else ""
-                        
-                        response = self.llm.generate(
-                            model=self.vision_model,
-                            prompt=f"Here is the OCR text for context:\n{context}\n\nPlease analyze the image and answer: {prompt}",
-                            images=image_data,
-                            stream=False
-                        )
-                        return response['response'] if isinstance(response, dict) else response.response
-                    except httpx.TimeoutException:
-                        logger.error("Vision request timed out")
-                        return "Error: Vision request timed out. Please try again."
-                    except Exception as e:
-                        logger.error(f"Error querying vision LLM: {e}")
-                        return f"Error querying LLM: {e}"
-                else:
-                    raise ValueError(f"Vision queries not supported for provider {provider}")
-                    
-        except Exception as e:
-            logger.error(f"LLM query failed: {e}")
-            return f"Error querying LLM: {e}..."
-            
-    def process_document(self, file_path: Union[str, Path], prompt: str,
-                      format: str = 'text', **kwargs) -> PDFProcessingResult:
-        """Process a document with the configured model."""
-        if not self._initialized:
-            return PDFProcessingResult(
-                success=False,
-                error="Processor not initialized. Please configure first."
-            )
-
-        try:
-            # Validate format
-            format = validate_format(format)
-            
-            # Load and process the PDF
             doc = fitz.open(file_path)
-            pdf_text = ""
-            for page in doc:
-                page_text = page.get_text()
-                if page_text.strip():
-                    pdf_text += page_text + "\n"
-                
-            # Process images with OCR if enabled
-            ocr_text = ""
-            ocr_confidence = 0.0
+            text_content = []
+            ocr_results = []
+            ocr_confidences = []
             
-            if self.reader:
-                images = self._extract_images(doc)
-                ocr_results = []
-                confidences = []
+            for page_num, page in enumerate(doc):
+                # Extract text
+                text_content.append(page.get_text())
                 
-                for image, page_num in images:
-                    text, conf = self._process_image_ocr(image)
-                    if text:
-                        ocr_results.append(f"[Page {page_num + 1}] {text}")
-                        confidences.append(conf)
-                
-                if ocr_results:
-                    ocr_text = "\n".join(ocr_results)
-                    ocr_confidence = sum(confidences) / len(confidences)
+                # Handle OCR if enabled
+                if self.reader is not None:
+                    images = self._extract_images(page)
+                    for image, _ in images:
+                        try:
+                            results = self.reader.readtext(np.array(image))
+                            if results:
+                                ocr_text, ocr_conf = self._process_ocr_results(results, page_num)
+                                ocr_results.append(ocr_text)
+                                ocr_confidences.append(ocr_conf)
+                        except Exception as e:
+                            if self.verbose:
+                                logger.warning(f"OCR failed for an image: {e}")
+                            if not self.config_manager.config.ocr_fallback:
+                                raise
             
-            # Combine texts
-            combined_text = self._combine_text(pdf_text.strip(), ocr_text)
+            # Combine text
+            pdf_text = "\n".join(text_content)
+            ocr_text = "\n".join(ocr_results) if ocr_results else None
+            ocr_confidence = sum(ocr_confidences) / len(ocr_confidences) if ocr_confidences else None
             
-            # Process with LLM
-            if self.text_provider == "ollama":
-                try:
+            combined_text = self._combine_text(pdf_text, ocr_text) if ocr_text else pdf_text
+            
+            # Process with LLM if prompt provided
+            llm_response = None
+            if prompt and self.text_provider and self.text_model:
+                if self.text_provider == 'ollama':
                     response = self.llm.generate(
                         model=self.text_model,
-                        prompt=f"Context:\n{combined_text}\n\nPrompt: {prompt}",
-                        stream=False
+                        prompt=f"{prompt}\n\nDocument content:\n{combined_text}"
                     )
-                    llm_response = response.response
-                except httpx.TimeoutException:
-                    logger.error("Request timed out")
-                    return PDFProcessingResult(
-                        success=False,
-                        error="Error: Request timed out. Please try again."
-                    )
-                except Exception as e:
-                    logger.error(f"Error processing document: {e}")
-                    return PDFProcessingResult(
-                        success=False,
-                        error=str(e)
-                    )
-            else:
-                messages = [
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant processing document content."
-                    },
-                    {
-                        "role": "user",
-                        "content": f"Document content:\n\n{combined_text}\n\nPrompt: {prompt}"
-                    }
-                ]
-                response = self.llm.completion(
-                    model=f"{self.text_provider}/{self.text_model}",
-                    messages=messages
-                )
-                llm_response = response.choices[0].message.content
+                    logger.debug("LLM Request:\n%s", pformat({
+                        "model": self.text_model,
+                        "provider": self.text_provider,
+                        "prompt": prompt,
+                        "text_length": len(combined_text) if combined_text else 0
+                    }))
+                    logger.debug("LLM Response:\n%s", pformat({
+                        "response": response['response']
+                    }))
+                    llm_response = response['response']
             
             return PDFProcessingResult(
                 success=True,
                 text=combined_text,
-                metadata={"filename": os.path.basename(file_path)},
+                metadata=None,  # TODO: Add metadata extraction
                 page_count=len(doc),
+                error=None,
                 llm_response=llm_response,
-                ocr_text=ocr_text if ocr_text else None,
-                ocr_confidence=ocr_confidence if ocr_confidence > 0 else None
+                filename=str(file_path),
+                vision_response=None,
+                ocr_text=ocr_text,
+                ocr_confidence=ocr_confidence
             )
             
         except Exception as e:
-            logger.error(f"Error processing document: {e}")
+            error_msg = f"Failed to process document: {str(e)}"
+            if self.verbose:
+                logger.error(error_msg)
             return PDFProcessingResult(
                 success=False,
-                error=str(e)
+                text=None,
+                metadata=None,
+                page_count=0,
+                error=error_msg,
+                llm_response=None,
+                filename=str(file_path),
+                vision_response=None,
+                ocr_text=None,
+                ocr_confidence=None
             )

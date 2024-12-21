@@ -9,6 +9,7 @@ import json
 import csv
 from io import StringIO
 import requests
+from pprint import pformat
 
 from .pdf_processor import PDFProcessor, ProcessingResult
 
@@ -103,12 +104,29 @@ class APIProcessor:
             ProcessResponse containing the processing results
         """
         try:
+            # Log model information in verbose mode
+            logger.debug("Using model configuration:\n%s", pformat({
+                "provider": "PDFProcessor",
+                "model": self.pdf_processor,
+                "capabilities": "PDF processing"
+            }))
+
             # First, extract text from PDF
             result = self.pdf_processor.process_file(
                 file_path=request.file_path,
                 prompt=request.prompt
             )
             
+            # Log response in verbose mode
+            logger.debug("PDF Processing Response:\n%s", pformat({
+                "success": result.success,
+                "text": result.text,
+                "metadata": result.metadata,
+                "page_count": result.page_count,
+                "error": result.error,
+                "llm_response": result.llm_response
+            }))
+
             response = ProcessResponse(
                 success=result.success,
                 text=result.text,
@@ -125,6 +143,12 @@ class APIProcessor:
                     request.output_schema.schema_def
                 )
                 
+                # Log request data in verbose mode
+                logger.debug("API Request:\n%s", pformat({
+                    "prompt": format_prompt,
+                    "file_path": request.file_path
+                }))
+
                 # Get structured output from LLM
                 format_result = self.pdf_processor.process_file(
                     request.file_path,
@@ -132,6 +156,16 @@ class APIProcessor:
                     enforce_pdf=True
                 )
                 
+                # Log response in verbose mode
+                logger.debug("API Response:\n%s", pformat({
+                    "success": format_result.success,
+                    "text": format_result.text,
+                    "metadata": format_result.metadata,
+                    "page_count": format_result.page_count,
+                    "error": format_result.error,
+                    "llm_response": format_result.llm_response
+                }))
+
                 if format_result.success and format_result.llm_response:
                     structured_output = format_result.llm_response.strip()
                     # Validate the output
@@ -166,6 +200,13 @@ class APIClient:
             The processing response
         """
         try:
+            # Log request data in verbose mode
+            logger.debug("API Request:\n%s", pformat({
+                "file_path": request.file_path,
+                "prompt": request.prompt,
+                "output_schema": request.output_schema
+            }))
+
             request_data = {"file_path": str(request.file_path), "prompt": request.prompt}
             
             if request.output_schema:
@@ -180,8 +221,13 @@ class APIClient:
                 json=request.model_dump()
             )
             response.raise_for_status()
+            
+            # Log response in verbose mode
+            logger.debug("API Response:\n%s", pformat(response.json()))
+
             return ProcessResponse(**response.json())
         except Exception as e:
+            logger.error(f"Error processing PDF through API: {str(e)}")
             return ProcessResponse(
                 success=False,
                 error=str(e)

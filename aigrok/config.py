@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 import litellm
 from loguru import logger
 import ollama
+import httpx
 
 class ModelConfig(BaseModel):
     """Configuration for a model."""
@@ -45,7 +46,7 @@ class AigrokConfig(BaseModel):
     text_model: ModelConfig
     vision_model: ModelConfig
     audio_model: Optional[ModelConfig] = None
-    ocr_enabled: bool = Field(default=True)
+    ocr_enabled: bool = Field(default=False)
     ocr_languages: List[str] = Field(default_factory=lambda: ["en"])
     ocr_fallback: bool = Field(default=False)
     ocr_confidence_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -60,152 +61,14 @@ class ConfigManager:
     
     SUPPORTED_PROVIDERS = {
         "ollama": {
-            "text_models": [],  # Dynamic
-            "vision_models": ["llama3.2-vision:11b"],
-            "audio_models": []
+            "description": "Local LLM models via Ollama",
+            "endpoint_required": True,
+            "default_endpoint": "http://localhost:11434"
         },
         "openai": {
-            "text_models": ["gpt-4", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"],
-            "vision_models": ["gpt-4-vision-preview"],
-            "audio_models": ["whisper-1"]
-        },
-        "anthropic": {
-            "env_var": "ANTHROPIC_API_KEY",
-            "text_models": ["claude-2.1", "claude-instant-1.2"],
-            "vision_models": ["claude-3-opus-20240229", "claude-3-sonnet-20240229"],
-            "audio_models": []
-        },
-        "anyscale": {
-            "env_var": "ANYSCALE_API_KEY",
-            "text_models": ["mistral-7b-instruct", "mixtral-8x7b-instruct"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "azure": {
-            "env_var": "AZURE_API_KEY",
-            "text_models": ["gpt-35-turbo", "gpt-4", "gpt-4-turbo"],
-            "vision_models": ["gpt-4-vision"],
-            "audio_models": []
-        },
-        "bedrock": {
-            "env_var": "AWS_ACCESS_KEY_ID",  # Also needs AWS_SECRET_ACCESS_KEY
-            "text_models": ["anthropic.claude-v2", "amazon.titan-text-express-v1"],
-            "vision_models": ["anthropic.claude-3-sonnet-20240229-v1:0"],
-            "audio_models": []
-        },
-        "cerebras": {
-            "env_var": "CEREBRAS_API_KEY",
-            "text_models": ["cerebras/btlm-3b-8k", "cerebras/btlm-7b-8k"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "cloudflare": {
-            "env_var": "CLOUDFLARE_API_KEY",
-            "text_models": ["@cf/meta/llama-2-7b", "@cf/mistral/mistral-7b-instruct"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "codestral": {
-            "env_var": "CODESTRAL_API_KEY",
-            "text_models": ["codestral-7b", "codestral-7b-instruct"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "cohere": {
-            "env_var": "COHERE_API_KEY",
-            "text_models": ["command", "command-light", "command-nightly"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "databricks": {
-            "env_var": "DATABRICKS_API_KEY",
-            "text_models": ["dolly-v2", "mpt-7b-instruct"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "deepinfra": {
-            "env_var": "DEEPINFRA_API_KEY",
-            "text_models": ["meta-llama/Llama-2-70b-chat", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "deepseek": {
-            "env_var": "DEEPSEEK_API_KEY",
-            "text_models": ["deepseek-coder", "deepseek-chat"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "fireworks_ai": {
-            "env_var": "FIREWORKS_API_KEY",
-            "text_models": ["llama-v2-7b", "mixtral-8x7b"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "gemini": {
-            "env_var": "GOOGLE_API_KEY",
-            "text_models": ["gemini-pro"],
-            "vision_models": ["gemini-pro-vision"],
-            "audio_models": []
-        },
-        "groq": {
-            "env_var": "GROQ_API_KEY",
-            "text_models": ["mixtral-8x7b-32768", "llama2-70b-4096"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "mistral": {
-            "env_var": "MISTRAL_API_KEY",
-            "text_models": ["mistral-tiny", "mistral-small", "mistral-medium"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "openrouter": {
-            "env_var": "OPENROUTER_API_KEY",
-            "text_models": ["openrouter/auto", "anthropic/claude-2.1"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "palm": {
-            "env_var": "PALM_API_KEY",
-            "text_models": ["palm-2"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "perplexity": {
-            "env_var": "PERPLEXITY_API_KEY",
-            "text_models": ["pplx-7b-online", "pplx-70b-online"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "replicate": {
-            "env_var": "REPLICATE_API_TOKEN",
-            "text_models": ["llama-2-70b-chat", "mixtral-8x7b-instruct-v0.1"],
-            "vision_models": ["llava-13b"],
-            "audio_models": []
-        },
-        "sagemaker": {
-            "env_var": "AWS_ACCESS_KEY_ID",  # Also needs AWS_SECRET_ACCESS_KEY
-            "text_models": ["sagemaker-llama-2-70b", "sagemaker-mixtral-8x7b"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "together_ai": {
-            "env_var": "TOGETHER_API_KEY",
-            "text_models": ["togethercomputer/llama-2-70b", "togethercomputer/falcon-40b"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "voyage": {
-            "env_var": "VOYAGE_API_KEY",
-            "text_models": ["voyage-01", "voyage-lite-01"],
-            "vision_models": [],
-            "audio_models": []
-        },
-        "xai": {
-            "env_var": "XAI_API_KEY",
-            "text_models": ["xai-large", "xai-medium"],
-            "vision_models": [],
-            "audio_models": []
+            "description": "OpenAI's GPT models",
+            "env_var": "OPENAI_API_KEY",
+            "endpoint_required": False
         }
     }
     
@@ -255,148 +118,193 @@ class ConfigManager:
             self.config = None
     
     def _get_providers(self, model_type: str) -> List[str]:
-        """Get list of providers that support a specific model type."""
-        return [
-            provider for provider, config in self.SUPPORTED_PROVIDERS.items()
-            if config[f"{model_type}_models"] or provider == "ollama"
-        ]
-    
-    def _get_models(self, provider: str, model_type: str) -> List[str]:
-        """Get list of models for a provider and type."""
-        try:
-            if provider == "ollama":
-                models = self._get_ollama_models()
-                return models[f"{model_type}_models"]
-            else:
-                return self.SUPPORTED_PROVIDERS[provider][f"{model_type}_models"]
-        except Exception as e:
-            logger.error(f"Failed to get {model_type} models for {provider}: {e}")
+        """Get supported providers for a model type."""
+        if model_type == "text":
+            return ["ollama", "openai"]
+        elif model_type == "vision":
+            return ["ollama", "openai"]
+        elif model_type == "audio":
+            return ["openai"]  # Only OpenAI supports audio
+        else:
             return []
-    
-    def _get_provider_model_count(self, provider: str, model_type: str) -> str:
-        """Get model count for a provider."""
-        if provider == "ollama":
-            return "dynamic models available"
-        models = self.SUPPORTED_PROVIDERS[provider][f"{model_type}_models"]
-        count = len(models)
-        return f"{count} model{'s' if count != 1 else ''} available"
 
-    def _configure_model(self, model_type: str, current_config: Optional[ModelConfig] = None) -> Optional[Dict[str, str]]:
+    def _get_models(self, provider: str, model_type: str) -> List[str]:
+        """Get available models for a provider and type."""
+        if provider == "openai":
+            try:
+                if not hasattr(self, '_openai_models'):
+                    self._openai_models = self._get_openai_models()
+                return self._openai_models.get(f"{model_type}_models", [])
+            except Exception as e:
+                logger.warning(f"Failed to get OpenAI models: {e}")
+                return []
+        elif provider == "ollama":
+            try:
+                if not hasattr(self, '_ollama_models'):
+                    self._ollama_models = self._get_ollama_models()
+                if model_type == "text":
+                    return self._ollama_models.get("text_models", [])
+                elif model_type == "vision":
+                    return self._ollama_models.get("vision_models", [])
+                elif model_type == "audio":
+                    return self._ollama_models.get("audio_models", [])
+                return []
+            except Exception as e:
+                logger.warning(f"Failed to get Ollama models: {e}")
+                return []
+        else:
+            return []
+
+    def _get_openai_models(self) -> Dict[str, List[str]]:
+        """Get available OpenAI models using the API."""
+        try:
+            # Check if OpenAI API key is available
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                logger.warning("OpenAI API key not found in environment")
+                return {"text_models": [], "vision_models": [], "audio_models": []}
+
+            import openai
+            client = openai.OpenAI(api_key=api_key)
+            models = client.models.list()
+
+            # Get all models except special purpose ones
+            all_models = []
+            audio_models = []
+            for model in models:
+                model_id = model.id.lower()
+                if not any(x in model_id for x in ["embedding", "moderation", "tts"]):
+                    if "whisper" in model_id:
+                        audio_models.append(model.id)
+                    else:
+                        all_models.append(model.id)
+            
+            # For backward compatibility, return all models as text models
+            # Let the user choose which model to use for each purpose
+            return {
+                "text_models": all_models,
+                "vision_models": all_models,
+                "audio_models": audio_models
+            }
+        except Exception as e:
+            logger.warning(f"Error fetching OpenAI models: {e}")
+            return {"text_models": [], "vision_models": [], "audio_models": []}
+
+    def _get_provider_model_count(self, provider: str, model_type: str) -> int:
+        """Get number of models available for a provider and type."""
+        if provider not in self.SUPPORTED_PROVIDERS:
+            raise KeyError(f"Invalid provider: {provider}")
+        return len(self._get_models(provider, model_type))
+
+    def _configure_model(self, model_type: str, current_config: Optional[ModelConfig] = None) -> Optional[Dict]:
         """Configure a model interactively."""
-        print(f"Configuring {model_type} model:\n")
-        
-        # Show available providers
+        print(f"\nConfiguring {model_type} model:")
+
+        # Get available providers
         providers = self._get_providers(model_type)
-        print("Available providers:")
+        if not providers:
+            print(f"No providers available for {model_type} models")
+            return None
+
+        # Show provider options
+        print("\nAvailable providers:")
+        for idx, provider in enumerate(providers, 1):
+            provider_info = self.SUPPORTED_PROVIDERS[provider]
+            desc = provider_info.get("description", "")
+            model_count = self._get_provider_model_count(provider, model_type)
+            print(f"{idx}. {provider} ({model_count} models available) {desc}")
+
+        # Get provider selection
         default_idx = None
         if current_config:
             try:
                 default_idx = providers.index(current_config.provider) + 1
             except ValueError:
                 pass
-        
-        for i, provider in enumerate(providers, 1):
-            default_marker = " [default]" if i == default_idx else ""
-            model_count = self._get_provider_model_count(provider, model_type)
-            print(f"{i}. {provider} ({model_count}){default_marker}")
-        
-        try:
+
+        provider_idx = None
+        while provider_idx is None:
             prompt = f"\nSelect provider (number) [{default_idx}]: " if default_idx else "\nSelect provider (number): "
             choice = input(prompt).strip()
-            provider_idx = int(choice) if choice else default_idx
-            if not provider_idx or provider_idx < 1 or provider_idx > len(providers):
-                print("Invalid provider selection")
-                return None
             
-            provider_idx -= 1  # Convert to 0-based index
-            provider = providers[provider_idx]
-            
-            # Handle Ollama endpoint
-            endpoint = None
-            if provider == "ollama":
-                default_endpoint = current_config.endpoint if current_config and current_config.provider == "ollama" else "http://localhost:11434"
-                endpoint = input(f"\nEnter Ollama endpoint [{default_endpoint}]: ").strip()
-                if not endpoint:
-                    endpoint = default_endpoint
-                    
-                # Test Ollama connection
-                try:
-                    os.environ["OLLAMA_HOST"] = endpoint
-                    models = self._get_ollama_models()
-                    if not models[f"{model_type}_models"]:
-                        print(f"No {model_type} models found at {endpoint}")
-                        return None
-                except Exception as e:
-                    print(f"Failed to connect to Ollama at {endpoint}: {e}")
-                    return None
-            
-            # Get available models
-            models = self._get_models(provider, model_type)
-            if not models:
-                print(f"No {model_type} models available for {provider}")
-                return None
+            # Use default if empty and default exists
+            if not choice and default_idx:
+                provider_idx = default_idx
+                continue
                 
-            print("\nAvailable models:")
-            default_idx = None
-            if current_config and current_config.provider == provider:
-                try:
-                    default_idx = models.index(current_config.model_name) + 1
-                except ValueError:
-                    pass
-            
-            for i, model in enumerate(models, 1):
-                default_marker = " [default]" if i == default_idx else ""
-                print(f"{i}. {model}{default_marker}")
-            
-            prompt = f"\nSelect model (number) [{default_idx}]: " if default_idx else "\nSelect model (number): "
-            choice = input(prompt).strip()
-            model_idx = int(choice) if choice else default_idx
-            if not model_idx or model_idx < 1 or model_idx > len(models):
-                print("Invalid model selection")
+            # Validate input
+            try:
+                idx = int(choice)
+                if 1 <= idx <= len(providers):
+                    provider_idx = idx
+                else:
+                    print(f"Please enter a number between 1 and {len(providers)}")
+            except ValueError:
+                print("Please enter a valid number")
+
+        provider = providers[provider_idx - 1]
+        provider_info = self.SUPPORTED_PROVIDERS[provider]
+
+        # Check for required environment variables
+        if env_var := provider_info.get("env_var"):
+            if not os.getenv(env_var):
+                print(f"\nWarning: {env_var} environment variable not set")
+                print(f"Please set {env_var} to use {provider}")
                 return None
-            
-            model_idx -= 1  # Convert to 0-based index
-            model = models[model_idx]
-            
-            return {
-                "provider": provider,
-                "model_name": model,
-                "endpoint": endpoint
-            }
-            
-        except (ValueError, IndexError):
-            print("Invalid selection")
+
+        # Get endpoint if required
+        endpoint = None
+        if provider_info.get("endpoint_required"):
+            default_endpoint = provider_info.get("default_endpoint", "")
+            endpoint = input(f"\nEnter {provider} endpoint [{default_endpoint}]: ").strip() or default_endpoint
+
+        # Get available models
+        models = self._get_models(provider, model_type)
+        if not models:
+            print(f"\nNo {model_type} models available for {provider}")
+            if provider == "openai":
+                print("Please check your OPENAI_API_KEY and try again")
             return None
 
-    def _get_ollama_models(self) -> Dict[str, List[str]]:
-        """Get available Ollama models."""
-        try:
-            # List all models
-            models = ollama.list()
-            
-            # Categorize models
-            text_models = []
-            vision_models = []
-            audio_models = []
-            
-            for model in models:
-                name = model['name']
-                # Vision models typically have 'vision' in their name
-                if 'vision' in name.lower():
-                    vision_models.append(name)
-                # Currently no audio models in Ollama
-                else:
-                    text_models.append(name)
-            
-            return {
-                "text_models": text_models,
-                "vision_models": vision_models,
-                "audio_models": audio_models
-            }
-        except Exception as e:
-            logger.warning(f"Failed to get Ollama models: {e}")
-            return {"text_models": [], "vision_models": [], "audio_models": []}
+        # Show model options
+        print("\nAvailable models:")
+        for idx, model in enumerate(models, 1):
+            print(f"{idx}. {model}")
 
+        # Get model selection
+        default_idx = None
+        if current_config and current_config.provider == provider:
+            try:
+                default_idx = models.index(current_config.model_name) + 1
+            except ValueError:
+                pass
+
+        model_idx = None
+        while model_idx is None:
+            prompt = f"\nSelect model (number) [{default_idx}]: " if default_idx else "\nSelect model (number): "
+            choice = input(prompt).strip()
+            
+            # Use default if empty and default exists
+            if not choice and default_idx:
+                model_idx = default_idx
+                continue
+                
+            # Validate input
+            try:
+                idx = int(choice)
+                if 1 <= idx <= len(models):
+                    model_idx = idx
+                else:
+                    print(f"Please enter a number between 1 and {len(models)}")
+            except ValueError:
+                print("Please enter a valid number")
+
+        return {
+            "provider": provider,
+            "model_name": models[model_idx - 1],
+            "endpoint": endpoint
+        }
+    
     def configure(self):
         """Configure settings interactively."""
         print("\nConfiguring Aigrok settings...")
@@ -404,7 +312,7 @@ class ConfigManager:
         # Create default config if none exists
         if not self.config:
             self.config = AigrokConfig(
-                ocr_enabled=True,
+                ocr_enabled=False,
                 ocr_languages=['en'],
                 ocr_fallback=False,
                 text_model=ModelConfig(
@@ -415,10 +323,11 @@ class ConfigManager:
                 vision_model=ModelConfig(
                     provider='ollama',
                     model_name='llama3.2-vision:11b',
+                    endpoint='http://localhost:11434'
                 )
             )
             self.save_config()
-            print("\nCreated default configuration with OCR enabled.")
+            print("\nCreated default configuration with OCR disabled and default Ollama models.")
             return
             
         # Initialize empty config
@@ -505,3 +414,39 @@ class ConfigManager:
         # Write config
         with open(self.CONFIG_FILE, 'w') as f:
             yaml.dump(config_dict, f)
+
+    def _get_ollama_models(self) -> Dict[str, List[str]]:
+        """Get available Ollama models."""
+        try:
+            # Try to connect to Ollama server
+            client = ollama.Client(host=self.SUPPORTED_PROVIDERS["ollama"]["default_endpoint"])
+            models = client.list()
+            
+            text_models = []
+            vision_models = []
+            
+            if isinstance(models, dict) and 'models' in models:
+                for model in models['models']:
+                    name = model.get('name', '')
+                    if name:
+                        # Simple classification based on model name
+                        if any(x in name.lower() for x in ['vision', 'clip', 'image']):
+                            vision_models.append(name)
+                        else:
+                            text_models.append(name)
+            
+            if not text_models and not vision_models:
+                logger.warning("No models found in Ollama response")
+                
+            return {
+                "text_models": text_models,
+                "vision_models": vision_models,
+                "audio_models": []
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get Ollama models: {e}")
+            return {
+                "text_models": [],
+                "vision_models": [],
+                "audio_models": []
+            }

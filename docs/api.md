@@ -7,6 +7,7 @@ Aigrok provides a powerful Python API for document processing and analysis. The 
 - Flexible for advanced scenarios
 - Provider-agnostic with consistent interfaces
 - Well-typed with comprehensive error handling
+- Highly configurable with automatic model discovery
 
 ## Installation
 
@@ -22,6 +23,16 @@ from aigrok import process_document
 # Basic usage
 result = process_document("document.pdf", prompt="Summarize the content")
 print(result.text)
+
+# Advanced usage with provider selection
+result = process_document(
+    "document.pdf",
+    prompt="Extract key information",
+    provider="openai",  # or "ollama"
+    model="gpt-4-vision-preview",  # or any available model
+    format="json",
+    schema={"type": "object", "properties": {...}}
+)
 ```
 
 ## Core API
@@ -35,12 +46,14 @@ def process_document(
     file_path: str,
     prompt: Optional[str] = None,
     *,
+    provider: Optional[str] = None,  # "openai" or "ollama"
     model: str = "default",
     format: str = "text",
     schema: Optional[Dict[str, Any]] = None,
     stream: bool = False,
     timeout: Optional[int] = None,
     retries: int = 3,
+    verbose: bool = False,  # Enable detailed logging
     **model_kwargs: Any
 ) -> Union[ProcessingResult, AsyncIterator[ProcessingResult]]:
     """Process a document using the specified model.
@@ -48,21 +61,24 @@ def process_document(
     Args:
         file_path: Path to the document file
         prompt: Optional processing prompt
+        provider: Model provider to use (openai/ollama)
         model: Model name to use for processing
-        format: Output format (text/json/csv/markdown)
-        schema: Optional schema for structured output
-        stream: Enable streaming output
-        timeout: Operation timeout in seconds
-        retries: Number of retry attempts
-        **model_kwargs: Provider-specific model parameters
+        format: Output format (text/json/markdown)
+        schema: JSON schema for structured output
+        stream: Enable streaming responses
+        timeout: Request timeout in seconds
+        retries: Number of retries on failure
+        verbose: Enable detailed logging
+        **model_kwargs: Additional model-specific arguments
 
     Returns:
-        ProcessingResult or AsyncIterator[ProcessingResult] if streaming
+        ProcessingResult or AsyncIterator[ProcessingResult]
 
     Raises:
-        ValueError: If parameters are invalid
-        ProcessingError: If processing fails
-        TimeoutError: If operation times out
+        FileNotFoundError: If document file not found
+        ValidationError: If schema validation fails
+        ConfigurationError: If provider/model not configured
+        ProcessingError: If document processing fails
     """
 ```
 
@@ -90,6 +106,22 @@ async def process_documents(
 ```
 
 ### Configuration
+
+The configuration system supports multiple providers and automatic model discovery:
+
+```python
+from aigrok import ConfigManager
+
+# Initialize configuration
+config = ConfigManager()
+
+# Configure interactively
+config.configure()
+
+# Access configuration
+print(config.get_available_models("text"))  # List text models
+print(config.get_available_models("vision"))  # List vision models
+```
 
 #### Config Class
 
@@ -273,6 +305,20 @@ This is particularly important when:
 - Processing large batches of documents
 - Using paid API services
 - Running in production environments
+
+## Logging
+
+Aigrok uses the `loguru` logger for comprehensive logging:
+
+```python
+from loguru import logger
+
+# Enable debug logging
+logger.enable("aigrok")
+
+# Process with verbose logging
+result = process_document("doc.pdf", verbose=True)
+```
 
 ## Best Practices
 

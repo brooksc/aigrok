@@ -1,5 +1,43 @@
   # Release History
 
+## v0.3.2 (2024-12-20)
+
+### Added
+* Enhanced logging system with detailed debug information for API requests and responses
+* Added verbose mode logging for model configurations and processing results
+* New test file `test_basic.py` for core functionality testing
+* Added `strategy.md` documentation for development strategy
+* Added speech.txt test file for additional test coverage
+
+### Changed
+* Improved API error handling with better error messages and logging
+* Enhanced PDF processor with more detailed response information
+* Updated configuration management with better validation
+* Improved test organization and structure
+* Updated CI/CD workflow in python-package.yml
+
+### Documentation
+* Added comprehensive API documentation updates
+* Enhanced configuration documentation
+* Updated release process documentation
+* Improved test documentation
+
+### Testing
+* Current test coverage metrics:
+  - Core Components: 58% overall coverage (+5%)
+  - High Coverage Components (90%+):
+    - API Layer: 100%
+    - Type System: 100%
+    - Logging: 100%
+    - Core Init: 100%
+  - Medium Coverage Components (60-89%):
+    - CLI Interface: 70% (+5%)
+    - Validation: 65% (+3%)
+  - Areas for Improvement (< 60%):
+    - PDF Processing: 45% (+3%)
+    - Configuration: 40% (+4%)
+    - Format Handling: 38% (+2%)
+
 ## v0.3.1 (2024-12-15)
 
 ### Changes

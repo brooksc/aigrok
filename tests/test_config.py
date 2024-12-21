@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import yaml
 from pydantic import ValidationError
 from aigrok.config import ConfigManager, ModelConfig, OCRConfig, AigrokConfig
+from unittest.mock import patch
 
 @pytest.fixture
 def config_manager():
@@ -139,18 +140,30 @@ def test_ollama_model_detection(monkeypatch):
     assert "llama3.2:3b" in models["text_models"]
     assert "llama3.2-vision:11b" in models["vision_models"]
 
-def test_provider_model_count():
+@patch('openai.OpenAI')
+def test_provider_model_count(mock_openai):
     """Test provider model count calculation."""
+    # Mock OpenAI API response
+    mock_client = MagicMock()
+    mock_models = [
+        MagicMock(id="gpt-4"),
+        MagicMock(id="gpt-3.5-turbo"),
+        MagicMock(id="gpt-4-vision-preview"),
+        MagicMock(id="whisper-1")
+    ]
+    mock_client.models.list.return_value = mock_models
+    mock_openai.return_value = mock_client
+
     manager = ConfigManager()
-    
+
     # Test OpenAI model counts
     text_count = len(manager._get_models("openai", "text"))
     vision_count = len(manager._get_models("openai", "vision"))
     audio_count = len(manager._get_models("openai", "audio"))
-    
+
     assert text_count > 0
     assert vision_count > 0
-    assert audio_count > 0  # OpenAI has Whisper
+    assert audio_count > 0
 
 def test_invalid_provider():
     """Test handling of invalid provider."""

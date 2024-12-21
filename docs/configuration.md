@@ -30,99 +30,139 @@ AIGrok uses YAML for configuration. Here's a complete example with all available
 # Model Configuration
 models:
   text_model:
-    provider: "ollama"          # Model provider (ollama, openai, anthropic)
-    model_name: "llama2"        # Model to use
-    endpoint: "localhost:11434" # Provider endpoint
-    timeout: 30                # Model response timeout in seconds
+    provider: "openai"           # Model provider (openai, ollama)
+    model_name: "gpt-4"         # Model to use
+    endpoint: null              # Optional provider endpoint
+    timeout: 30                 # Model response timeout in seconds
     
   vision_model:
-    provider: "ollama"          # Vision model provider
-    model_name: "llama2-vision" # Vision model to use
-    endpoint: "localhost:11434" # Provider endpoint
-    timeout: 60                # Vision model timeout in seconds
+    provider: "openai"           # Vision model provider
+    model_name: "gpt-4-vision-preview"  # Vision model to use
+    endpoint: null              # Optional provider endpoint
+    timeout: 60                 # Vision model timeout in seconds
 
 # OCR Configuration
 ocr:
   enabled: true                # Enable OCR processing
-  languages: ["en"]           # List of language codes
+  languages: ["en"]            # List of language codes
   fallback: true              # Continue if OCR fails
-  confidence_threshold: 0.8   # Minimum confidence score
+  confidence_threshold: 0.8    # Minimum confidence score
   
 # Processing Options
 processing:
-  cache: true                 # Enable result caching
-  cache_ttl: 3600            # Cache TTL in seconds
-  format: "text"             # Default output format
-  batch_size: 10             # Batch processing size
-  low_memory: false          # Enable low memory mode
-  
-# Logging Configuration
+  cache_enabled: true          # Enable result caching
+  cache_ttl: 3600             # Cache TTL in seconds
+  max_retries: 3              # Max retries on failure
+  batch_size: 10              # Batch size for processing
+  timeout: 300                # Global timeout in seconds
+
+# Output Options
+output:
+  format: "text"              # Default output format (text, json, markdown)
+  include_metadata: true      # Include processing metadata
+  pretty_print: true          # Pretty print JSON output
+  max_tokens: 4096           # Max output tokens
+
+# Logging
 logging:
-  level: "info"              # Logging level (debug/info/warn/error)
-  file: "~/.local/share/aigrok/aigrok.log"  # Log file location
-  max_size: "10MB"           # Maximum log file size
-  backup_count: 5            # Number of backup logs to keep
-  
-# API Configuration
-api:
-  base_url: "http://localhost:11434"  # Default API base URL
-  timeout: 30                         # API request timeout
-  retry_delay: 1                      # Delay between retries
-  max_concurrent: 5                   # Max concurrent requests
-  
-# Cache Configuration
-cache:
-  directory: "~/.cache/aigrok"  # Cache directory location
-  max_size: "1GB"              # Maximum cache size
-  cleanup_interval: 3600       # Cache cleanup interval
+  level: "INFO"               # Logging level
+  file: "aigrok.log"         # Log file location
+  rotation: "1 week"         # Log rotation period
+  retention: "1 month"       # Log retention period
+  format: "{time} {level} {message}"  # Log format
 ```
 
 ## Environment Variables
 
-Configuration values can also be set via environment variables. The format is `AIGROK_SECTION_KEY`. For example:
+AIGrok supports the following environment variables:
 
-- `AIGROK_MODELS_TEXT_MODEL_PROVIDER=ollama`
-- `AIGROK_OCR_ENABLED=true`
-- `AIGROK_LOGGING_LEVEL=debug`
+- `OPENAI_API_KEY`: OpenAI API key
+- `OLLAMA_HOST`: Ollama host address (default: http://localhost:11434)
+- `AIGROK_CONFIG`: Custom config file location
+- `AIGROK_CACHE_DIR`: Custom cache directory
+- `AIGROK_LOG_LEVEL`: Override logging level
+- `AIGROK_VERBOSE`: Enable verbose logging (set to "1")
 
-Environment variables take precedence over configuration file values.
+## Provider Configuration
 
-## Provider-Specific Configuration
+### OpenAI
 
-### Ollama Configuration
-```yaml
-models:
-  text_model:
-    provider: "ollama"
-    model_name: "llama2"
-    endpoint: "localhost:11434"
-    timeout: 30
-    context_window: 4096
-    temperature: 0.7
-    
-  vision_model:
-    provider: "ollama"
-    model_name: "llama2-vision"
-    endpoint: "localhost:11434"
-    timeout: 60
-    max_tokens: 1024
-    temperature: 0.7
+1. Set your API key:
+   ```bash
+   export OPENAI_API_KEY="your-api-key"
+   ```
+
+2. Available models will be automatically discovered and filtered by capability (text/vision).
+
+### Ollama
+
+1. Install Ollama from https://ollama.ai
+
+2. Start the Ollama service:
+   ```bash
+   ollama serve
+   ```
+
+3. Pull required models:
+   ```bash
+   ollama pull llama2
+   ollama pull llama2-vision
+   ```
+
+4. Optional: Set custom endpoint:
+   ```bash
+   export OLLAMA_HOST="http://custom-host:11434"
+   ```
+
+## Advanced Configuration
+
+### Custom Model Selection
+
+You can specify different models for different tasks:
+
+```python
+from aigrok import process_document
+
+# Use GPT-4 for text analysis
+result = process_document("doc.txt", provider="openai", model="gpt-4")
+
+# Use GPT-4 Vision for image analysis
+result = process_document("doc.pdf", provider="openai", model="gpt-4-vision-preview")
+
+# Use Ollama for local processing
+result = process_document("doc.pdf", provider="ollama", model="llama2-vision")
 ```
 
-### OpenAI Configuration
-```yaml
-models:
-  text_model:
-    provider: "openai"
-    model_name: "gpt-4"
-    api_key: "${OPENAI_API_KEY}"  # Use environment variable
-    timeout: 30
-    
-  vision_model:
-    provider: "openai"
-    model_name: "gpt-4-vision-preview"
-    api_key: "${OPENAI_API_KEY}"
-    timeout: 60
+### Structured Output
+
+Configure JSON schema for structured output:
+
+```python
+schema = {
+    "type": "object",
+    "properties": {
+        "title": {"type": "string"},
+        "summary": {"type": "string"},
+        "topics": {"type": "array", "items": {"type": "string"}}
+    }
+}
+
+result = process_document("doc.pdf", format="json", schema=schema)
+```
+
+### Logging Configuration
+
+Configure detailed logging:
+
+```python
+import logging
+from aigrok.logging import configure_logging
+
+# Enable debug logging
+configure_logging(level="DEBUG", file="aigrok.log")
+
+# Enable verbose mode for specific operations
+result = process_document("doc.pdf", verbose=True)
 ```
 
 ## Validation
@@ -159,7 +199,7 @@ aigrok config edit
 Environment variables override file configuration:
 
 ```bash
-export AIGROK_MODELS_TEXT_MODEL_PROVIDER="ollama"
+export AIGROK_MODELS_TEXT_MODEL_PROVIDER="openai"
 export AIGROK_OCR_ENABLED="true"
 export AIGROK_LOGGING_LEVEL="debug"
 ```
@@ -181,15 +221,15 @@ Controls AI model behavior:
 ```yaml
 models:
   text_model:
-    provider: "ollama"
-    model_name: "llama2"
-    endpoint: "localhost:11434"
+    provider: "openai"
+    model_name: "gpt-4"
+    endpoint: null
     timeout: 30
     
   vision_model:
-    provider: "ollama"
-    model_name: "llama2-vision"
-    endpoint: "localhost:11434"
+    provider: "openai"
+    model_name: "gpt-4-vision-preview"
+    endpoint: null
     timeout: 60
 ```
 
@@ -199,7 +239,7 @@ Controls document processing:
 
 ```yaml
 processing:
-  cache: true
+  cache_enabled: true
   format: "text"
   batch_size: 10
 ```
@@ -210,66 +250,10 @@ Controls logging behavior:
 
 ```yaml
 logging:
-  level: "info"
+  level: "INFO"
   file: "aigrok.log"
   max_size: "10MB"
 ```
-
-## Advanced Configuration
-
-### Custom Model Configuration
-
-Configure specific models:
-
-```yaml
-models:
-  llama2-vision:
-    temperature: 0.7
-    max_tokens: 2000
-    context_window: 4096
-    
-  gpt-4-vision:
-    temperature: 0.5
-    max_tokens: 1000
-    context_window: 8192
-```
-
-### Cache Configuration
-
-Configure caching behavior:
-
-```yaml
-cache:
-  directory: "~/.cache/aigrok"
-  max_size: "1GB"
-  cleanup_interval: 3600
-  
-  strategies:
-    pdf_cache:
-      ttl: 86400
-      max_entries: 1000
-    
-    image_cache:
-      ttl: 3600
-      max_entries: 500
-```
-
-## Environment Variables Reference
-
-Complete list of supported environment variables:
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `AIGROK_CONFIG` | Config file path | `~/.config/aigrok/config.yaml` |
-| `AIGROK_MODELS_TEXT_MODEL_PROVIDER` | Text model provider | `ollama` |
-| `AIGROK_MODELS_VISION_MODEL_PROVIDER` | Vision model provider | `ollama` |
-| `AIGROK_OCR_ENABLED` | Enable OCR processing | `true` |
-| `AIGROK_CACHE_DIR` | Cache directory | `~/.cache/aigrok` |
-| `AIGROK_LOG_LEVEL` | Log level | `info` |
-| `AIGROK_LOG_FILE` | Log file path | `aigrok.log` |
-| `AIGROK_API_URL` | API base URL | `http://localhost:11434` |
-| `AIGROK_API_TIMEOUT` | API timeout | `30` |
-| `AIGROK_OUTPUT_FORMAT` | Output format | `text` |
 
 ## Best Practices
 

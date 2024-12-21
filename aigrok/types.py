@@ -1,7 +1,9 @@
 """
 Common types and data structures.
 """
-from typing import Optional, Dict, Any
+# Import only what we need from typing
+from typing_extensions import Optional, Dict, Any
+
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 

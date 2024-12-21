@@ -1,213 +1,134 @@
-# Best Practices for Aigrok Codebase
-
-## 1. Configuration Management
-- Always use [ConfigManager](cci:2://file:///Users/brooksc/Library/CloudStorage/Dropbox/py/aigrok/aigrok/config.py:37:0-595:110) class for handling configuration
-- Never hardcode API keys or endpoints
-- Use environment variables for sensitive data
-- Follow provider-specific configuration patterns
-- When updating configurations:
+1. Configuration Management
+- Use the `ConfigManager` class for all configuration handling.
+- Never hardcode API keys or sensitive information. Use environment variables instead.
+- Follow provider-specific configuration patterns.
+- Update configurations with proper TODO annotations:
   ```python
   # TODO(config): Update provider X configuration
-  # - Add new endpoint parameter
+  # - Add endpoint parameter
   # - Update validation logic
-  # - Add migration for existing configs
-  ```
+DO NOT prompt the user to let you run --configure as it requires interactive input.
 
-## 2. Model Selection
-- Respect model capabilities (text/vision/audio)
-- Always validate model availability before use
-- Handle Ollama models differently as they're dynamic
-- Consider model costs and capabilities when selecting
-- When adding new model support:
-  ```python
-  # TODO(models): Implement provider Y support
-  # - Add capability validation
-  # - Implement model listing
-  # - Add cost tracking
-  # - Update tests
-  ```
 
-## 3. Error Handling
-- Use proper exception handling with specific error types
-- Provide clear error messages to users
-- Log errors using the `loguru` logger
-- Fail gracefully and provide recovery options
-- Before updating error handling:
-  ```python
-  # TODO(errors): Enhance error handling for Z
-  # - Add new exception types
-  # - Update error messages
-  # - Add recovery procedures
-  # - Document new errors
-  ```
+2. Model Selection
+- Handle Ollama models separately due to dynamic behavior.
+- Consider both costs and capabilities when adding or selecting models.
+- Annotate model additions:
 
-## 4. Code Organization
-- Keep provider-specific code in separate methods
-- Use type hints consistently
-- Follow the established class structure
-- Use pydantic models for data validation
+# TODO(models): Implement provider Y support
+# - Add capability validation
+# - Implement cost tracking
 
-## 5. API Interaction
-- Verify API access before using services
-- Use official SDKs when available
-- Handle rate limits and quotas appropriately
-- Cache results when possible
+3. Error Handling
+- Use specific exception types and meaningful error messages.
+- Log all errors using the loguru logger.
+- Ensure graceful failure with recovery options.
 
-## 6. Security
-- Never commit API keys
-- Use secure methods for storing credentials
-- Validate user input
-- Follow least privilege principle
+4. Testing
+- Write tests for all new functionality.
+- Mock external API calls in tests to isolate dependencies.
+- Ensure test coverage for edge cases and error scenarios.
 
-## 7. Testing
-- Write tests for new functionality
-- Test with different model providers
-- Include error cases in tests
-- Mock external API calls in tests
+5. Documentation
+- Maintain up-to-date docstrings.
+- Update README and API documentation for new features.
+- Include usage examples for complex functionality.
 
-## 8. Documentation
-- Keep docstrings up to date
-- Document provider-specific behaviors
-- Update README with new features
-- Include examples for complex functionality
+6. Performance Optimization
+- Cache results and model configurations where possible.
+- Use async programming to optimize performance.
+- Minimize API calls to reduce latency and costs.
 
-## 9. Performance
-- Minimize API calls
-- Use async where appropriate
-- Cache model lists and configurations
-- Handle large files efficiently
+7. File and Import Organization
+- Group imports by type: standard library, third-party, and local.
+- Organize code into smaller, logically grouped files and directories.
+- Prefer importing functions or classes over modifying external files.
 
-## 10. User Experience
-- Provide clear prompts and feedback
-- Handle configuration gracefully
-- Allow for easy provider switching
-- Make error messages actionable
+8. Specification and Feature Plan
+- Always align changes with the project’s feature plan.
+- Update the feature plan progress after each completed task.
+- Suggest next steps in line with the feature plan.
 
-## 11. Code Preservation
-- Never remove functionality without explicit user approval
-- Keep existing code paths intact unless specifically asked to change them
-- Document any code that seems unused before suggesting removal
-- When refactoring, preserve all existing behavior
-- If suggesting code removal, first show what would be removed and why
+9. Change Management
+- Document all significant changes in HISTORY.md.
+- Track breaking changes and provide migration guides.
+- Version API changes appropriately.
 
-## 12. Specification Management
-- Always update spec before implementing changes
-- When user requests new features:
-  1. First propose spec updates
-  2. Get user approval
-  3. Then implement changes
-- Keep spec in sync with codebase
-- Document API changes in spec
-- Track breaking changes in spec
+10. Controlled Development
+- Propose a detailed implementation plan before making changes.
+- Execute changes incrementally and verify each step against tests and specifications.
+- Annotate major changes with TODOs:
 
-## 13. Testing Strategy
-### Example Test Structure:
-```python
-# Configuration Tests
-def test_ollama_endpoint_configuration():
-    """Test Ollama endpoint configuration scenarios"""
-    # Test default endpoint (localhost:11434)
-    # Test custom endpoint
-    # Test invalid endpoint
-    # Test connection timeout
-    
-def test_model_capability_filtering():
-    """Test model filtering by capability"""
-    # Test text model filtering
-    # Test vision model filtering
-    # Test audio model filtering
-    # Test invalid capability handling
-    
-def test_api_key_verification():
-    """Test API key verification for providers"""
-    # Test valid keys
-    # Test invalid keys
-    # Test expired keys
-    # Test rate limiting
-```
+# TODO(implementation): Add feature X
 
-## 14. Change Management
-- Document all significant changes
-- Update HISTORY.md with changes
-- Track breaking changes
-- Provide migration guides
-- Version API changes appropriately
+11. API Interaction
+- Validate API access and handle rate limits gracefully.
+- Use official SDKs when available.
+- Cache API responses to improve efficiency.
 
-## 15. Documentation Updates
-- Keep README in sync with changes
-- Update API documentation
-- Document new configuration options
-- Provide examples for new features
+12. Security
+- Validate user inputs rigorously.
+- Follow the principle of least privilege when accessing resources.
+- Ensure all credentials are securely stored and accessed.
 
-## 16. Code Update Procedures
-### Spec Updates
-Before making code changes:
-1. Create a specification update document:
-   ```markdown
-   # Specification Update: [Feature Name]
-   ## Current Behavior
-   - Document existing functionality
-   
-   ## Proposed Changes
-   - List all changes
-   - Include API modifications
-   - Note breaking changes
-   
-   ## Implementation Plan
-   - List required code changes
-   - Note affected modules
-   - Identify test requirements
-   ```
+14. Change Validation
+- Verify changes against existing tests before committing.
+- Avoid regressions by preserving all existing functionality.
+- Provide a rationale for every change made.
 
-2. Add TODOs in code:
-   ```python
-   # TODO(spec): Update provider interface
-   # Current: ProviderAPI.list_models()
-   # Update to: ProviderAPI.list_models(capability: Optional[str])
-   # Changes needed:
-   # - Update interface definition
-   # - Modify all provider implementations
-   # - Update tests
-   # - Update documentation
-   ```
+15. Code Review Automation
+- Output unified diffs for changes to aid human review.
+- Self-review generated code to ensure adherence to rules and guidelines.
 
-### Code Implementation
-After spec approval:
-1. Add implementation TODOs:
-   ```python
-   # TODO(implementation): Add capability filtering
-   # Steps:
-   # 1. Update ProviderAPI class
-   # 2. Implement in each provider
-   # 3. Add tests
-   # 4. Update docs
-   ```
+# Project File Structure Overview
 
-2. Track changes:
-   ```python
-   # TODO(tracking): Document changes
-   # - Update HISTORY.md
-   # - Update API docs
-   # - Add migration guide if needed
-   ```
+### Core Project Files
+- Source Code (./aigrok/): Contains the main application logic for your aigrok package:
+__init__.py: Initializes the aigrok package.
+config.py: Configuration handling logic.
+logging.py: Logging utilities.
+types.py: Type definitions.
+api.py: API interaction code.
+cli.py: Command-line interface functionality.
+formats.py: Format-related logic.
+pdf_processor.py: PDF processing functionality.
+validation.py: Input or data validation.
 
-### Testing Updates
-Before completing implementation:
-```python
-# TODO(tests): Add new test cases
-# Required:
-# - Unit tests for capability filtering
-# - Integration tests with providers
-# - Error case testing
-# - Performance impact tests
-```
+### Testing (./tests/)
+- Test Files: Tests for various components:
+test_basic.py: Basic tests.
+test_logging.py: Tests for logging.
+test_schema.py: Schema-related tests.
+test_pdf_processor.py: PDF processor tests.
+test_ocr.py: OCR tests.
+test_config.py: Configuration-related tests.
+test_performance.py: Performance tests.
+test_api.py: API tests.
+test_cli.py: CLI functionality tests.
+test_runner.py: Custom test runner logic.
+- Test Data: Includes sample files used for testing:
+tests/files/: Contains files like invoice.pdf and empty.pdf for input validation tests.
+- Config and Metadata: Supporting test configuration:
+conftest.py: Shared test fixtures.
+archived_test_cases.json: Archived cases for reference.
+.cache/: Cached test results.
+- README.md: Explains the test suite.
 
-### Documentation Updates
-Before marking as complete:
-```python
-# TODO(docs): Update documentation
-# - Update README.md
-# - Update API documentation
-# - Add examples
-# - Update changelog
-```
+### Documentation (./docs/)
+api.md: API documentation.
+configuration.md: Configuration instructions.
+quickstart.md: Quick start guide.
+architecture.md: High-level design overview.
+deployment.md: Deployment instructions.
+testing.md: Guidance for testing the project.
+troubleshooting.md: Common issues and fixes.
+guidelines.md: Development and usage guidelines.
+files.md: Explanation of project file organization.
+
+### Scripts (./scripts/)
+run_tests.py: Script to execute tests.
+deploy_testpypi.sh: Deploy to TestPyPI.
+push-test-pypi.sh: Push to TestPyPI.
+run_cached_tests.py: Run cached tests for speed.
+deploy_pypi.sh: Deploy to PyPI.
+install_test.sh: Install testing environment.

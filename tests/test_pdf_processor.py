@@ -12,8 +12,8 @@ from aigrok.config import ConfigManager, AigrokConfig, ModelConfig
 def mock_config():
     """Create a mock configuration."""
     return {
-        'text_model': ModelConfig(provider='ollama', model_name='llama2', endpoint='http://localhost:11434'),
-        'vision_model': ModelConfig(provider='ollama', model_name='llama2-vision', endpoint='http://localhost:11434'),
+        'text_model': ModelConfig(provider='ollama', model_name='llama3.2:3b', endpoint='http://localhost:11434'),
+        'vision_model': ModelConfig(provider='ollama', model_name='llama3.2-vision:3b', endpoint='http://localhost:11434'),
         'ocr_enabled': True,
         'ocr_languages': ['en'],
         'ocr_fallback': True
@@ -116,13 +116,12 @@ def test_process_document_with_ocr(mock_ollama, mock_reader, mock_fitz_open, pro
 
     # Mock Ollama
     mock_ollama_instance = MagicMock()
-    mock_response = MagicMock()
-    mock_response.response = "LLM response"
+    mock_response = {"response": "LLM response"}
     mock_ollama_instance.generate.return_value = mock_response
     mock_ollama.return_value = mock_ollama_instance
     processor.llm = mock_ollama_instance
     processor.text_provider = "ollama"
-    processor.text_model = "llama2"
+    processor.text_model = "llama3.2:3b"
 
     # Process document
     with patch.object(processor, '_extract_images') as mock_extract_images:
@@ -149,11 +148,12 @@ def test_process_document_ocr_disabled(mock_ollama, mock_fitz_open, processor):
 
     # Mock Ollama
     mock_ollama_instance = MagicMock()
-    mock_response = MagicMock()
-    mock_response.response = "LLM response"
+    mock_response = {"response": "LLM response"}
     mock_ollama_instance.generate.return_value = mock_response
     mock_ollama.return_value = mock_ollama_instance
     processor.llm = mock_ollama_instance
+    processor.text_provider = "ollama"
+    processor.text_model = "llama3.2:3b"
 
     # Process document
     result = processor.process_document("/path/to/doc.pdf", "test prompt")

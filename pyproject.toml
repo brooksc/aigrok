@@ -19,7 +19,7 @@ filterwarnings = [
 
 [project]
 name = "aigrok"
-version = "0.3.1"
+version = "0.3.2"
 description = "A Python package for document processing and analysis with LLM integration and OCR capabilities"
 authors = [
     {name = "aigrok", email = "brooksc@brooksc.com"},
@@ -36,6 +36,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "pypdf>=5.1.0",
