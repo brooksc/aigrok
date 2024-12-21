@@ -115,20 +115,7 @@ This document outlines the step-by-step process for releasing a new version of a
 
 ## Release Process
 
-5. Package Preparation
-   ```bash
-   # Clean old builds
-   rm -rf dist/ build/ *.egg-info/
-   
-   # Build package
-   python -m build
-   
-   # Verify package structure
-   tar tzf dist/*.tar.gz
-   unzip -l dist/*.whl
-   ```
-
-6. Git Operations
+5. Git Operations
    ```bash
    # Stage changes
    git status
@@ -148,29 +135,7 @@ This document outlines the step-by-step process for releasing a new version of a
    git push origin vX.Y.Z
    ```
 
-7. Test Release
-   ```bash
-   # Deploy to TestPyPI
-   ./scripts/deploy_testpypi.sh
-   
-   # Test installation from TestPyPI (replace X.Y.Z with actual version)
-   python -m pip install --index-url https://test.pypi.org/simple/ aigrok==X.Y.Z
-   
-   # Verify functionality
-   python -c "import aigrok; print(aigrok.__version__)"
-   ```
-
-8. Production Release
-   ```bash
-   # Deploy to PyPI
-   ./scripts/deploy_pypi.sh
-   
-   # Verify installation (replace X.Y.Z with actual version)
-   python -m pip install --upgrade aigrok==X.Y.Z
-   python -c "import aigrok; print(aigrok.__version__)"
-   ```
-
-9. GitHub Release
+6. GitHub Release
    ```bash
    # Create GitHub release (replace X.Y.Z with actual version number)
    gh release create vX.Y.Z \
@@ -190,6 +155,42 @@ This document outlines the step-by-step process for releasing a new version of a
    
    # Verify release page
    gh release view vX.Y.Z
+   ```
+
+7. Package Preparation
+   ```bash
+   # Clean old builds
+   rm -rf dist/ build/ *.egg-info/
+   
+   # Build package
+   python -m build
+   
+   # Verify package structure
+   tar tzf dist/*.tar.gz
+   unzip -l dist/*.whl
+   ```
+
+
+8. Test Release
+   ```bash
+   # Deploy to TestPyPI
+   ./scripts/deploy_testpypi.sh
+   
+   # Test installation from TestPyPI (replace X.Y.Z with actual version)
+   python -m pip install --index-url https://test.pypi.org/simple/ aigrok==X.Y.Z
+   
+   # Verify functionality
+   python -c "import aigrok; print(aigrok.__version__)"
+   ```
+
+9. Production Release
+   ```bash
+   # Deploy to PyPI
+   ./scripts/deploy_pypi.sh
+   
+   # Verify installation (replace X.Y.Z with actual version)
+   python -m pip install --upgrade aigrok==X.Y.Z
+   python -c "import aigrok; print(aigrok.__version__)"
    ```
 
 ## Post-Release Tasks

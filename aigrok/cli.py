@@ -119,109 +119,52 @@ def create_parser() -> argparse.ArgumentParser:
 
     return parser
 
-def format_output(result: Union[ProcessingResult, List[ProcessingResult]], format_type: str = "text", show_filenames: bool = False) -> str:
-    """Format processing result for output.
-    
-    Args:
-        result: Processing result or list of results to format
-        format_type: Output format (text, json, markdown)
-        show_filenames: Whether to show filenames in text output (for multiple files)
-    
-    Returns:
-        Formatted output string
-    """
-    if isinstance(result, list):
-        if format_type == "text":
-            # Format each result with filename prefix (like grep)
-            formatted_results = []
-            for r in result:
-                if not isinstance(r, ProcessingResult):
-                    logger.warning(f"Unexpected result type: {type(r)}")
-                    continue
-                response = r.llm_response or r.text or ""
-                filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
-                if response:
-                    if show_filenames:
-                        formatted_results.append(f"{filename}: {response}")
-                    else:
-                        formatted_results.append(response)
-            return "\n".join(formatted_results)
+def format_output(results, format_type="text", show_filenames=True):
+    """Format the processing results based on the specified format type."""
+    if not isinstance(results, list):
+        results = [results]
+
+    if format_type == "text":
+        output = []
+        for result in results:
+            if result and result.llm_response:  # Only output if we have a response
+                line = ""
+                if show_filenames and result.metadata.get("file_name"):
+                    line += f"{result.metadata.get('file_name')}:"
+                line += f"{result.llm_response}"
+                if line:  # Only append non-empty lines
+                    output.append(line)
+        return "\n".join(output) if output else ""
+
+    elif format_type == "json":
+        return json.dumps([{
+            "file_name": r.metadata.get("file_name", ""),
+            "text": r.text,
+            "llm_response": r.llm_response,
+            "success": r.success,
+            "metadata": r.metadata
+        } for r in results], indent=2)
+
+    elif format_type == "markdown":
+        output = []
+        for result in results:
+            filename = result.metadata.get("file_name", "")
+            output.append(f"# {filename}")
+            
+            if result.text:
+                output.append("## Extracted Text")
+                output.append(result.text)
+            
+            if result.llm_response:
+                output.append("## LLM Response")
+                output.append(result.llm_response)
+            
+            output.append("")  # Add blank line between files
         
-        if format_type == "json":
-            return json.dumps([{
-                "success": r.success,
-                "text": r.text,
-                "metadata": r.metadata,
-                "page_count": r.page_count,
-                "llm_response": r.llm_response,
-                "error": r.error,
-                "filename": getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
-            } for r in result if isinstance(r, ProcessingResult)], indent=2)
-        
-        if format_type == "markdown":
-            all_lines = []
-            for r in result:
-                if not isinstance(r, ProcessingResult):
-                    logger.warning(f"Unexpected result type: {type(r)}")
-                    continue
-                filename = getattr(r, 'filename', None) or r.metadata.get('file_name', 'unknown')
-                lines = [
-                    f"# {filename}",
-                    f"Text: {r.text or 'N/A'}",
-                    f"Page Count: {r.page_count}",
-                    f"LLM Response: {r.llm_response or 'N/A'}"
-                ]
-                if r.metadata:
-                    lines.extend([
-                        "## Metadata",
-                        *[f"{k}: {v}" for k, v in r.metadata.items()]
-                    ])
-                if r.error:
-                    lines.append(f"## Error\n{r.error}")
-                all_lines.extend(lines)
-                all_lines.append("\n---\n")  # Separator between documents
-            return "\n".join(all_lines)
+        return "\n".join(output)
+
     else:
-        if not isinstance(result, ProcessingResult):
-            logger.warning(f"Unexpected result type: {type(result)}")
-            return ""
-        
-        if format_type == "text":
-            response = result.llm_response or result.text or ""
-            filename = getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
-            if response:
-                if show_filenames:
-                    return f"{filename}: {response}"
-                return response
-            return response
-        
-        if format_type == "json":
-            return json.dumps({
-                "success": result.success,
-                "text": result.text,
-                "metadata": result.metadata,
-                "page_count": result.page_count,
-                "llm_response": result.llm_response,
-                "error": result.error,
-                "filename": getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
-            }, indent=2)
-        
-        if format_type == "markdown":
-            filename = getattr(result, 'filename', None) or result.metadata.get('file_name', 'unknown')
-            lines = [
-                f"# {filename}",
-                f"Text: {result.text or 'N/A'}",
-                f"Page Count: {result.page_count}",
-                f"LLM Response: {result.llm_response or 'N/A'}"
-            ]
-            if result.metadata:
-                lines.extend([
-                    "## Metadata",
-                    *[f"{k}: {v}" for k, v in result.metadata.items()]
-                ])
-            if result.error:
-                lines.append(f"## Error\n{result.error}")
-            return "\n".join(lines)
+        raise ValueError(f"Unsupported format type: {format_type}")
 
 def process_single_file(file_path: Union[str, Path], prompt: str) -> ProcessingResult:
     """Process a single PDF file.
@@ -304,24 +247,30 @@ def process_files(args):
             logger.debug("File Processing Response:\n%s", pformat({
                 "success": result.success,
                 "text": result.text[:200] + "..." if result.text else None,  # Truncate long text
+                "llm_response": result.llm_response,  
                 "metadata": result.metadata,
                 "error": result.error
             }))
         
-        results.append(result)
+        if result and result.llm_response:
+            results.append(result)
+            # Print each result immediately
+            line = ""
+            if result.metadata.get("file_name"):
+                line += f"{result.metadata.get('file_name')}:"
+            line += f"{result.llm_response}"
+            print(line, flush=True)
 
-    # Format output
+    # Always pass the full list to format_output
     output = format_output(
-        results if len(files) > 1 else results[0] if results else None,
+        results,
         format_type=args.format,
-        show_filenames=len(files) > 1
+        show_filenames=True  # Always show filenames when processing multiple files
     )
 
-    # Write output
+    # Only write to output file if specified
     if args.output:
         Path(args.output).write_text(output)
-    else:
-        print(output)
 
 def main():
     """Main entry point."""

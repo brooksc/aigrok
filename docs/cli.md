@@ -67,15 +67,26 @@ aigrok "Extract text" scan.pdf --easyocr --ocr-fallback
 ### Output Formats
 
 ```bash
-# Get JSON output
-aigrok "Analyze" doc.pdf -f json
+# Get plain text output (default)
+aigrok "Analyze" doc.pdf
 
-# Get Markdown output
-aigrok "Analyze" doc.pdf -f markdown
+# Get text output with filenames
+aigrok "Analyze" *.pdf --format text
 
-# Save formatted output
-aigrok "Analyze" doc.pdf -f markdown -o analysis.md
+# Get JSON output with metadata
+aigrok "Analyze" doc.pdf --format json
+
+# Get markdown formatted output
+aigrok "Analyze" doc.pdf --format markdown
+
+# Process multiple files with filename prefixes
+aigrok "Analyze" *.pdf --format text --show-filenames
 ```
+
+The output formats support the following features:
+- `text`: Clean text output with optional filename prefixes
+- `json`: Structured output with full metadata and processing results
+- `markdown`: Rich text format with document sections and formatting
 
 ## Planned Features
 

@@ -8,7 +8,7 @@ import sys
 from io import StringIO
 
 def test_format_output_single_file():
-    """Test that format_output doesn't add filename prefix for single file in text mode."""
+    """Test that format_output shows both extracted text and LLM response when both are present."""
     result = ProcessingResult(
         success=True,
         text="Sample text",
@@ -19,10 +19,38 @@ def test_format_output_single_file():
     # Format without filename (single file)
     output = format_output(result, format_type="text", show_filenames=False)
     assert "test.pdf:" not in output
-    assert output == "Sample response"
+    assert "Extracted text:\nSample text" in output
+    assert "LLM response:\nSample response" in output
+    assert output.index("Extracted text:") < output.index("LLM response:")  # Verify order
+
+def test_format_output_text_only():
+    """Test that format_output shows only extracted text when no LLM response."""
+    result = ProcessingResult(
+        success=True,
+        text="Sample text",
+        llm_response=None,
+        metadata={"file_name": "test.pdf"}
+    )
+    
+    output = format_output(result, format_type="text", show_filenames=False)
+    assert "Extracted text:\nSample text" in output
+    assert "LLM response:" not in output
+
+def test_format_output_llm_only():
+    """Test that format_output shows only LLM response when no extracted text."""
+    result = ProcessingResult(
+        success=True,
+        text=None,
+        llm_response="Sample response",
+        metadata={"file_name": "test.pdf"}
+    )
+    
+    output = format_output(result, format_type="text", show_filenames=False)
+    assert "LLM response:\nSample response" in output
+    assert "Extracted text:" not in output
 
 def test_format_output_multiple_files():
-    """Test that format_output adds filename prefix for multiple files in text mode."""
+    """Test that format_output shows both text and LLM response for multiple files."""
     results = [
         ProcessingResult(
             success=True,
@@ -40,8 +68,28 @@ def test_format_output_multiple_files():
     
     # Format with filenames (multiple files)
     output = format_output(results, format_type="text", show_filenames=True)
-    assert "test1.pdf: Sample response 1" in output
-    assert "test2.pdf: Sample response 2" in output
+    
+    # Check first file
+    assert "test1.pdf:" in output
+    assert "Extracted text:\nSample text 1" in output
+    assert "LLM response:\nSample response 1" in output
+    
+    # Check second file
+    assert "test2.pdf:" in output
+    assert "Extracted text:\nSample text 2" in output
+    assert "LLM response:\nSample response 2" in output
+    
+    # Verify order within each file's output
+    file1_start = output.index("test1.pdf:")
+    file2_start = output.index("test2.pdf:")
+    assert file1_start < file2_start  # Files are in order
+    
+    # Verify sections are properly ordered within each file
+    file1_text = output[file1_start:file2_start]
+    assert file1_text.index("Extracted text:") < file1_text.index("LLM response:")
+    
+    file2_text = output[file2_start:]
+    assert file2_text.index("Extracted text:") < file2_text.index("LLM response:")
 
 def test_format_output_json():
     """Test that format_output includes filenames in JSON mode regardless of show_filenames."""
@@ -57,7 +105,8 @@ def test_format_output_json():
     assert '"file_name": "test.pdf"' in output
 
 def test_format_output_markdown():
-    """Test that format_output includes filenames in Markdown mode regardless of show_filenames."""
+    """Test markdown formatting with various combinations of text and LLM response."""
+    # Test with both text and LLM response
     result = ProcessingResult(
         success=True,
         text="Sample text",
@@ -65,9 +114,45 @@ def test_format_output_markdown():
         metadata={"file_name": "test.pdf"}
     )
     
-    # Format as Markdown (should always include filename)
     output = format_output(result, format_type="markdown", show_filenames=False)
     assert "# test.pdf" in output
+    assert "## Extracted Text" in output
+    assert "Sample text" in output
+    assert "## LLM Response" in output
+    assert "Sample response" in output
+    
+    # Verify order of sections
+    assert output.index("## Extracted Text") < output.index("## LLM Response")
+    
+    # Test with only text
+    result_text_only = ProcessingResult(
+        success=True,
+        text="Sample text",
+        llm_response=None,
+        metadata={"file_name": "text_only.pdf"}
+    )
+    
+    output_text_only = format_output(result_text_only, format_type="markdown", show_filenames=False)
+    assert "# text_only.pdf" in output_text_only
+    assert "## Extracted Text" in output_text_only
+    assert "Sample text" in output_text_only
+    assert "## LLM Response" in output_text_only
+    assert "N/A" in output_text_only  # LLM response should show N/A
+    
+    # Test with only LLM response
+    result_llm_only = ProcessingResult(
+        success=True,
+        text=None,
+        llm_response="Sample response",
+        metadata={"file_name": "llm_only.pdf"}
+    )
+    
+    output_llm_only = format_output(result_llm_only, format_type="markdown", show_filenames=False)
+    assert "# llm_only.pdf" in output_llm_only
+    assert "## Extracted Text" in output_llm_only
+    assert "N/A" in output_llm_only  # Text should show N/A
+    assert "## LLM Response" in output_llm_only
+    assert "Sample response" in output_llm_only
 
 @pytest.fixture
 def mock_pdf_processor():
@@ -273,3 +358,153 @@ def test_configure_with_ollama_error(tmp_path):
         main()
     assert exc.value.code == 0
     assert config_file.exists()
+
+import io
+import contextlib
+from unittest.mock import patch, MagicMock
+import pytest
+from aigrok.cli import process_files, format_output
+from aigrok.pdf_processor import PDFProcessor, PDFProcessingResult
+
+class TestCLI:
+    @pytest.fixture
+    def mock_processor(self):
+        """Create a mock PDF processor"""
+        with patch('aigrok.cli.PDFProcessor') as mock:
+            processor = mock.return_value
+            processor.process_file.return_value = PDFProcessingResult(
+                success=True,
+                text="test text",
+                llm_response="test response",
+                metadata={"file_name": "test.pdf"}
+            )
+            yield processor
+
+    @pytest.fixture
+    def mock_args(self):
+        """Create mock arguments"""
+        args = MagicMock()
+        args.files = ["test.pdf"]
+        args.prompt = "test prompt"
+        args.format = "text"
+        args.output = None
+        args.verbose = False
+        return args
+
+    def test_immediate_output(self, mock_processor, mock_args):
+        """Test that results are output immediately"""
+        # Setup multiple mock files
+        mock_args.files = ["test1.pdf", "test2.pdf", "test3.pdf"]
+        
+        # Capture stdout
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            process_files(mock_args)
+            output = buf.getvalue()
+            
+            # Verify each result appears in order
+            lines = output.strip().split('\n')
+            assert len(lines) == 3
+            assert all(':' in line for line in lines)
+            assert all(line.endswith("test response") for line in lines)
+
+    def test_llm_response_formats(self, mock_args):
+        """Test different LLM response formats"""
+        processor = PDFProcessor()
+        
+        # Test object-style response
+        class MockObjectResponse:
+            class Choice:
+                class Message:
+                    content = "test content"
+                choices = [Message()]
+            choices = [Choice()]
+        
+        # Test dict-style response
+        dict_response = {
+            'choices': [{
+                'message': {
+                    'content': 'test content'
+                }
+            }]
+        }
+        
+        with patch('aigrok.pdf_processor.litellm.completion') as mock_llm:
+            # Test object response
+            mock_llm.return_value = MockObjectResponse()
+            result = processor._query_llm("test prompt", "", "openai", None)
+            assert result == "test content"
+            
+            # Test dict response
+            mock_llm.return_value = dict_response
+            result = processor._query_llm("test prompt", "", "openai", None)
+            assert result == "test content"
+            
+            # Test invalid responses
+            for invalid_response in [{}, {'choices': []}, {'choices': [{}]}, None]:
+                mock_llm.return_value = invalid_response
+                result = processor._query_llm("test prompt", "", "openai", None)
+                assert result is None or "Error" in result
+
+    def test_error_handling(self, mock_args):
+        """Test error handling in processing"""
+        processor = PDFProcessor()
+        
+        with patch('aigrok.pdf_processor.litellm.completion') as mock_llm:
+            # Test network error
+            mock_llm.side_effect = ConnectionError("Network error")
+            result = processor._query_llm("test prompt", "", "openai", None)
+            assert "Error" in result
+            
+            # Test timeout
+            mock_llm.side_effect = TimeoutError("Timeout")
+            result = processor._query_llm("test prompt", "", "openai", None)
+            assert "Error" in result
+            
+            # Test malformed response
+            mock_llm.return_value = "invalid response"
+            result = processor._query_llm("test prompt", "", "openai", None)
+            assert result is None or "Error" in result
+
+    def test_end_to_end_processing(self, mock_processor, mock_args):
+        """Test complete processing pipeline"""
+        # Setup multiple files with different responses
+        responses = [
+            PDFProcessingResult(success=True, text="text1", llm_response="response1", metadata={"file_name": "test1.pdf"}),
+            PDFProcessingResult(success=True, text="text2", llm_response="response2", metadata={"file_name": "test2.pdf"}),
+            PDFProcessingResult(success=False, error="Failed", metadata={"file_name": "test3.pdf"})
+        ]
+        
+        mock_processor.process_file.side_effect = responses
+        mock_args.files = ["test1.pdf", "test2.pdf", "test3.pdf"]
+        
+        with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+            process_files(mock_args)
+            output = buf.getvalue()
+            
+            # Verify successful outputs
+            assert "test1.pdf:response1" in output
+            assert "test2.pdf:response2" in output
+            # Verify failed file doesn't output
+            assert "test3.pdf" not in output
+
+    def test_output_formatting(self):
+        """Test output formatting options"""
+        results = [
+            PDFProcessingResult(success=True, text="text1", llm_response="response1", metadata={"file_name": "test1.pdf"}),
+            PDFProcessingResult(success=True, text="text2", llm_response="response2", metadata={"file_name": "test2.pdf"})
+        ]
+        
+        # Test text format
+        text_output = format_output(results, format_type="text", show_filenames=True)
+        assert "test1.pdf:response1" in text_output
+        assert "test2.pdf:response2" in text_output
+        
+        # Test JSON format
+        json_output = format_output(results, format_type="json", show_filenames=True)
+        assert '"file_name": "test1.pdf"' in json_output
+        assert '"llm_response": "response1"' in json_output
+        
+        # Test markdown format
+        md_output = format_output(results, format_type="markdown", show_filenames=True)
+        assert "# test1.pdf" in md_output
+        assert "## LLM Response" in md_output

@@ -289,21 +289,17 @@ Please answer the question using only information from the document above."""
                         "text_length": len(context) if context else 0
                     }))
                     logger.debug("LLM Response:\n%s", pformat({
-                        "response": response.choices[0].message.content
+                        "response": response.choices[0].message.content if hasattr(response, 'choices') else response
                     }))
-                    logger.debug(f"LLM Response type: {type(response)}")
-                    logger.debug(f"LLM Response content: {response}")
                     
-                    # Handle litellm response format
-                    try:
-                        if isinstance(response, dict):
-                            if 'choices' in response and response['choices']:
-                                return response['choices'][0]['message']['content']
+                    # Handle both dictionary and object responses
+                    if hasattr(response, 'choices') and response.choices:
                         return response.choices[0].message.content
-                    except (AttributeError, IndexError, KeyError) as e:
-                        logger.error(f"Error accessing LLM response: {e}")
-                        logger.error(f"Response structure: {response}")
-                        return f"Error: Unable to parse LLM response"
+                    elif isinstance(response, dict) and 'choices' in response and response['choices']:
+                        return response['choices'][0]['message']['content']
+                    else:
+                        logger.error(f"Unexpected response format: {response}")
+                        return None
             else:
                 # Vision query
                 if not images:
@@ -392,13 +388,17 @@ Please be concise and only include information that directly answers the questio
                             "messages": messages
                         }))
                         logger.debug("LLM Response:\n%s", pformat({
-                            "response": response.choices[0].message.content
+                            "response": response.choices[0].message.content if hasattr(response, 'choices') else response
                         }))
                         
-                        if isinstance(response, dict):
-                            if 'choices' in response and response['choices']:
-                                return response['choices'][0]['message']['content']
-                        return response.choices[0].message.content
+                        # Handle both dictionary and object responses
+                        if hasattr(response, 'choices') and response.choices:
+                            return response.choices[0].message.content
+                        elif isinstance(response, dict) and 'choices' in response and response['choices']:
+                            return response['choices'][0]['message']['content']
+                        else:
+                            logger.error(f"Unexpected response format: {response}")
+                            return None
                     except Exception as e:
                         logger.error(f"Error querying OpenAI vision: {e}")
                         return f"Error querying vision LLM: {e}"

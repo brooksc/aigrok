@@ -1,5 +1,17 @@
   # Release History
 
+## v0.3.3 (2024-12-21)
+
+### Changed
+* Improved CLI output formatting with better structure and readability
+* Enhanced text output format with configurable filename display
+* Simplified JSON output structure for better consistency
+* Added markdown output format support
+* Version bump for release management
+
+### Testing
+* Updated CLI tests to reflect new output formatting changes
+
 ## v0.3.2 (2024-12-20)
 
 ### Added
