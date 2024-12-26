@@ -1,19 +1,18 @@
 """
 Common types and data structures.
 """
+
 # Import only what we need from typing
 from typing_extensions import Optional, Dict, Any
 
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
+
 
 class ProcessingResult(BaseModel):
     """Result of processing a PDF file."""
-    model_config = ConfigDict(
-        extra='forbid',
-        validate_default=True
-    )
-    
+
+    model_config = ConfigDict(extra="forbid", validate_default=True)
+
     success: bool
     text: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
